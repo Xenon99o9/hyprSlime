@@ -10,18 +10,48 @@ Singleton {
 
     // ─── Multi-Menu Visibility States (Caelestia + end-4 Architecture) ────────
     property bool dashboardOpen: false
-    property int activeTab: 0 // 0: Dashboard, 1: Special WS, 2: Wallpapers & Themes, 3: Network & VPN, 4: Keybinds
+    property int activeTab: 0 // 0: Dashboard, 1: Special WS, 2: Wallpapers & Themes, 3: Displays, 4: Network & VPN, 5: Keybinds
 
     property bool topDropdownOpen: false
-    property int topDropdownTab: 0 // 0: Media & Now Playing, 1: Calendar & Time, 2: Telemetry Gauges
+    property int topDropdownTab: 0
 
     property bool launcherOpen: false
     property bool cornerMenuOpen: false
 
-    // Legacy aliases for compatibility
+    // Super-tap tracking so Super alone works reliably without misfiring on Super+Key
+    property double lastSuperPressTime: 0
+    property double lastLauncherToggleTime: 0
+    property bool superComboUsed: false
+
     property alias controlCenterOpen: root.dashboardOpen
 
+    function superPress() {
+        lastSuperPressTime = Date.now();
+        superComboUsed = false;
+    }
+
+    function superCancel() {
+        superComboUsed = true;
+    }
+
+    function superRelease() {
+        const now = Date.now();
+        if (now - lastLauncherToggleTime < 220) {
+            return;
+        }
+        if (superComboUsed) {
+            superComboUsed = false;
+            return;
+        }
+        if (lastSuperPressTime > 0 && (now - lastSuperPressTime > 700)) {
+            return;
+        }
+        lastLauncherToggleTime = now;
+        toggleLauncher();
+    }
+
     function openDashboardTab(tabIndex) {
+        superComboUsed = true;
         activeTab = tabIndex;
         dashboardOpen = true;
         topDropdownOpen = false;
@@ -29,10 +59,12 @@ Singleton {
         cornerMenuOpen = false;
         loadSpecialWorkspaces();
         loadWallpapers();
-        if (tabIndex === 3) scanWifi();
+        if (tabIndex === 3) loadMonitors();
+        if (tabIndex === 4) scanWifi();
     }
 
     function toggleDashboard() {
+        superComboUsed = true;
         dashboardOpen = !dashboardOpen;
         if (dashboardOpen) {
             topDropdownOpen = false;
@@ -40,10 +72,12 @@ Singleton {
             cornerMenuOpen = false;
             loadSpecialWorkspaces();
             loadWallpapers();
+            loadMonitors();
         }
     }
 
     function toggleTopDropdown() {
+        superComboUsed = true;
         topDropdownOpen = !topDropdownOpen;
         if (topDropdownOpen) {
             dashboardOpen = false;
@@ -54,6 +88,7 @@ Singleton {
     }
 
     function toggleLauncher() {
+        lastLauncherToggleTime = Date.now();
         launcherOpen = !launcherOpen;
         if (launcherOpen) {
             dashboardOpen = false;
@@ -64,6 +99,7 @@ Singleton {
     }
 
     function toggleCornerMenu() {
+        superComboUsed = true;
         cornerMenuOpen = !cornerMenuOpen;
         if (cornerMenuOpen) {
             dashboardOpen = false;
@@ -82,6 +118,56 @@ Singleton {
     property int volume: 50
     property bool muted: false
     property int brightness: 100
+    property bool initialStatusLoaded: false
+
+    // ─── On-Screen Display (OSD) Properties ───────────────────────────────────
+    property bool osdVisible: false
+    property string osdMode: "volume" // "volume", "brightness", "mic"
+    property int osdValue: 50
+    property bool osdMuted: false
+
+    function showOsd(mode, val, isMuted) {
+        osdMode = mode;
+        osdValue = val;
+        osdMuted = isMuted === true;
+        osdVisible = true;
+        osdHideTimer.restart();
+    }
+
+    function osdVolume(action) {
+        if (action === "up") {
+            muted = false;
+            volume = Math.min(150, volume + 5);
+            showOsd("volume", volume, false);
+        } else if (action === "down") {
+            volume = Math.max(0, volume - 5);
+            showOsd("volume", volume, muted);
+        } else if (action === "mute") {
+            muted = !muted;
+            showOsd("volume", volume, muted);
+        } else if (action === "mic") {
+            showOsd("mic", 100, !osdMuted);
+        }
+        if (osdProc.running) {
+            osdProc.running = false;
+        }
+        osdProc.command = [ctlScript, "osd-vol", action];
+        osdProc.running = true;
+    }
+
+    function osdBrightness(action) {
+        if (action === "up") {
+            brightness = Math.min(100, brightness + 5);
+        } else {
+            brightness = Math.max(5, brightness - 5);
+        }
+        showOsd("brightness", brightness, false);
+        if (osdProc.running) {
+            osdProc.running = false;
+        }
+        osdProc.command = [ctlScript, "osd-bright", action];
+        osdProc.running = true;
+    }
 
     property bool wifiEnabled: true
     property string wifiSsid: "Disconnected"
@@ -106,6 +192,7 @@ Singleton {
     property string clockFullDate: ""
     property string clockDayNumber: "01"
     property string clockMonthName: "JAN"
+    property var calendarDays: []
 
     // ─── Assets & Wallpaper Engine Properties ─────────────────────────────────
     readonly property string rimuruAvatar: Quickshell.env("HOME") + "/.config/hypr/wallpapers/rimuru-avatar.png"
@@ -113,9 +200,12 @@ Singleton {
     property var wallpapers: []
     property string transitionType: "wave"
 
-    // ─── Dynamic Special Workspaces & Desktop Apps ────────────────────────────
+    // ─── Dynamic Special Workspaces, Monitors & Desktop Apps ──────────────────
     property var specialWorkspaces: []
+    property var monitorList: []
+    property int selectedMonitorIndex: 0
     property var appList: []
+    property var runningApps: []
     readonly property string specialScript: Quickshell.env("HOME") + "/.config/hypr/scripts/special-ws.sh"
     readonly property string ctlScript: Quickshell.env("HOME") + "/.config/hypr/scripts/sage-ctl.sh"
 
@@ -151,6 +241,9 @@ Singleton {
 
     // ─── Helper Actions ───────────────────────────────────────────────────────
     function runCmd(args) {
+        if (actionProc.running) {
+            actionProc.running = false;
+        }
         actionProc.command = args;
         actionProc.running = true;
         refreshDelayed.restart();
@@ -169,7 +262,11 @@ Singleton {
     }
 
     function toggleSpecialWs(wsId) {
-        runCmd([specialScript, "toggle", wsId]);
+        if (specialToggleProc.running) {
+            specialToggleProc.running = false;
+        }
+        specialToggleProc.command = [specialScript, "toggle", wsId];
+        specialToggleProc.running = true;
     }
 
     function updateSpecialWs(wsId, newBind, newCmd) {
@@ -210,6 +307,31 @@ Singleton {
             statusProc.running = true;
         }
         loadSpecialWorkspaces();
+        loadRunningApps();
+    }
+
+    function loadRunningApps() {
+        if (!runningAppsProc.running) {
+            runningAppsProc.running = true;
+        }
+    }
+
+    function focusRunningApp(appData) {
+        if (!appData) return;
+        runCmd([ctlScript, "focus-app", appData.address || "", appData.specialId || "", appData.id || ""]);
+    }
+
+    function cyclePowerProfile() {
+        let next = "balanced";
+        if (powerProfile === "power-saver") {
+            next = "balanced";
+        } else if (powerProfile === "balanced") {
+            next = "performance";
+        } else {
+            next = "power-saver";
+        }
+        powerProfile = next;
+        runCmd([ctlScript, "set-power", next]);
     }
 
     function loadWallpapers() {
@@ -224,6 +346,28 @@ Singleton {
         }
     }
 
+    function loadMonitors() {
+        if (!monitorListProc.running) {
+            monitorListProc.running = true;
+        }
+    }
+
+    function applyMonitors(monitorsData) {
+        if (monitorModProc.running) {
+            monitorModProc.running = false;
+        }
+        monitorModProc.command = [ctlScript, "monitor-apply", JSON.stringify(monitorsData)];
+        monitorModProc.running = true;
+    }
+
+    function applyMonitorPreset(presetName) {
+        if (monitorModProc.running) {
+            monitorModProc.running = false;
+        }
+        monitorModProc.command = [ctlScript, "monitor-preset", presetName];
+        monitorModProc.running = true;
+    }
+
     function scanWifi() {
         if (!wifiScanProc.running) {
             wifiScanning = true;
@@ -231,13 +375,42 @@ Singleton {
         }
     }
 
+    function buildCalendarGrid(now) {
+        const year = now.getFullYear();
+        const month = now.getMonth();
+        const today = now.getDate();
+
+        const firstDay = new Date(year, month, 1);
+        // Monday-based index (0 = Mon .. 6 = Sun)
+        const startDow = (firstDay.getDay() + 6) % 7;
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const daysInPrev = new Date(year, month, 0).getDate();
+
+        const cells = [];
+        for (let i = 0; i < 42; ++i) {
+            const dNum = i - startDow + 1;
+            if (dNum < 1) {
+                cells.push({ label: (daysInPrev + dNum).toString(), inMonth: false, isToday: false });
+            } else if (dNum > daysInMonth) {
+                cells.push({ label: (dNum - daysInMonth).toString(), inMonth: false, isToday: false });
+            } else {
+                cells.push({ label: dNum.toString(), inMonth: true, isToday: (dNum === today) });
+            }
+        }
+        calendarDays = cells;
+    }
+
     function updateClock() {
         const now = new Date();
         clockTime = Qt.formatTime(now, "HH:mm:ss");
         clockDate = Qt.formatDate(now, "ddd dd MMM");
-        clockFullDate = Qt.formatDate(now, "dddd, dd MMMM yyyy");
-        clockDayNumber = Qt.formatDate(now, "dd");
-        clockMonthName = Qt.formatDate(now, "MMMM yyyy").toUpperCase();
+        clockFullDate = Qt.formatDate(now, "dddd dd MMMM yyyy");
+        const newDay = Qt.formatDate(now, "dd");
+        if (newDay !== clockDayNumber || calendarDays.length === 0) {
+            clockDayNumber = newDay;
+            clockMonthName = Qt.formatDate(now, "MMMM yyyy").toUpperCase();
+            buildCalendarGrid(now);
+        }
     }
 
     Component.onCompleted: {
@@ -245,7 +418,19 @@ Singleton {
         refresh();
         loadWallpapers();
         loadSpecialWorkspaces();
+        loadMonitors();
         loadApps();
+    }
+
+    Connections {
+        target: Hyprland
+        function onRawEvent(event) {
+            if (event.name === "monitoradded" || event.name === "monitorremoved" || event.name === "configreloaded") {
+                root.loadMonitors();
+            } else if (event.name === "openwindow" || event.name === "closewindow" || event.name === "movewindow" || event.name === "activespecial") {
+                root.loadRunningApps();
+            }
+        }
     }
 
     Timer {
@@ -269,9 +454,45 @@ Singleton {
         onTriggered: root.refresh()
     }
 
+    Timer {
+        id: osdHideTimer
+        interval: 1900
+        repeat: false
+        onTriggered: root.osdVisible = false
+    }
+
+    Process {
+        id: osdProc
+        command: ["true"]
+        stdout: StdioCollector {
+            id: osdCollector
+            onStreamFinished: {
+                try {
+                    const data = JSON.parse(osdCollector.text.trim());
+                    if (data.mode === "volume") {
+                        root.volume = data.value;
+                        root.muted = data.muted === true;
+                        root.showOsd("volume", root.volume, root.muted);
+                    } else if (data.mode === "brightness") {
+                        root.brightness = data.value;
+                        root.showOsd("brightness", root.brightness, false);
+                    } else if (data.mode === "mic") {
+                        root.showOsd("mic", data.value, data.muted === true);
+                    }
+                } catch (e) {}
+            }
+        }
+    }
+
     Process {
         id: actionProc
         command: ["true"]
+    }
+
+    Process {
+        id: specialToggleProc
+        command: ["true"]
+        onExited: root.loadSpecialWorkspaces()
     }
 
     Process {
@@ -309,6 +530,46 @@ Singleton {
     }
 
     Process {
+        id: runningAppsProc
+        command: [root.ctlScript, "running-apps"]
+        stdout: StdioCollector {
+            id: runningAppsCollector
+            onStreamFinished: {
+                try {
+                    root.runningApps = JSON.parse(runningAppsCollector.text.trim());
+                } catch (e) {
+                    root.runningApps = [];
+                }
+            }
+        }
+    }
+
+    Process {
+        id: monitorListProc
+        command: [root.ctlScript, "monitor-list"]
+        stdout: StdioCollector {
+            id: monitorCollector
+            onStreamFinished: {
+                try {
+                    const parsed = JSON.parse(monitorCollector.text.trim());
+                    root.monitorList = parsed;
+                    if (root.selectedMonitorIndex >= parsed.length) {
+                        root.selectedMonitorIndex = 0;
+                    }
+                } catch (e) {
+                    root.monitorList = [];
+                }
+            }
+        }
+    }
+
+    Process {
+        id: monitorModProc
+        command: ["true"]
+        onExited: root.loadMonitors()
+    }
+
+    Process {
         id: statusProc
         command: [root.ctlScript, "status"]
         stdout: StdioCollector {
@@ -321,9 +582,20 @@ Singleton {
                     root.ramText = data.ramText !== undefined ? data.ramText : "";
                     root.batPercent = data.bat !== undefined ? data.bat : 100;
                     root.batStatus = data.batStatus !== undefined ? data.batStatus : "AC";
-                    root.volume = data.vol !== undefined ? data.vol : 50;
-                    root.muted = data.muted !== undefined ? data.muted : false;
-                    root.brightness = data.bright !== undefined ? data.bright : 100;
+                    const newVol = data.vol !== undefined ? data.vol : 50;
+                    const newMuted = data.muted !== undefined ? data.muted : false;
+                    const newBright = data.bright !== undefined ? data.bright : 100;
+                    if (root.initialStatusLoaded) {
+                        if (newVol !== root.volume || newMuted !== root.muted) {
+                            root.showOsd("volume", newVol, newMuted);
+                        } else if (newBright !== root.brightness) {
+                            root.showOsd("brightness", newBright, false);
+                        }
+                    }
+                    root.volume = newVol;
+                    root.muted = newMuted;
+                    root.brightness = newBright;
+                    root.initialStatusLoaded = true;
                     root.wifiEnabled = data.wifiEnabled !== undefined ? data.wifiEnabled : false;
                     root.wifiSsid = data.wifiSsid !== undefined ? data.wifiSsid : "Disconnected";
                     root.vpnActive = data.vpnActive !== undefined ? data.vpnActive : false;

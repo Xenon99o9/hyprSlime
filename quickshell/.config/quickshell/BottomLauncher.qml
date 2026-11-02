@@ -1,6 +1,4 @@
-
 import QtQuick
-import QtQuick.Layouts
 import QtQuick.Controls
 import Quickshell
 import Quickshell.Wayland
@@ -29,6 +27,18 @@ Variants {
 
         property string queryText: ""
         property int selectedIndex: 0
+        property bool superPressedInside: false
+
+        Timer {
+            id: focusGuardTimer
+            interval: 30
+            repeat: false
+            onTriggered: {
+                if (launcherWindow.visible) {
+                    searchField.forceActiveFocus();
+                }
+            }
+        }
 
         readonly property var filteredApps: {
             const q = queryText.trim().toLowerCase();
@@ -48,14 +58,18 @@ Variants {
 
         onVisibleChanged: {
             if (visible) {
+                superPressedInside = false;
                 queryText = "";
                 selectedIndex = 0;
                 searchField.text = "";
+                if (SageState.appList.length === 0) {
+                    SageState.loadApps();
+                }
                 searchField.forceActiveFocus();
+                focusGuardTimer.restart();
             }
         }
 
-        // Click outside to close
         MouseArea {
             anchors.fill: parent
             onClicked: SageState.launcherOpen = false
@@ -63,11 +77,11 @@ Variants {
 
         SageFrame {
             id: launcherFrame
-            width: 640
+            width: 660
             height: 460
             anchors {
                 bottom: parent.bottom
-                bottomMargin: 24
+                bottomMargin: 20
                 horizontalCenter: parent.horizontalCenter
             }
             chamfer: 16
@@ -82,16 +96,19 @@ Variants {
                 anchors.fill: parent
             }
 
-            ColumnLayout {
-                anchors.fill: parent
-                anchors.margins: 20
+            Column {
+                x: 22
+                y: 20
+                width: 616
                 spacing: 12
 
                 // Header
-                RowLayout {
-                    Layout.fillWidth: true
+                Item {
+                    width: 616
+                    height: 20
 
                     Text {
+                        anchors.left: parent.left
                         text: "◈ GREAT SAGE // APPLICATION SUMMONING MATRIX"
                         color: SageState.secondaryAccent
                         font.family: "JetBrainsMono Nerd Font"
@@ -100,10 +117,9 @@ Variants {
                         font.letterSpacing: 1.2
                     }
 
-                    Item { Layout.fillWidth: true }
-
                     Text {
-                        text: "[ESC TO CLOSE]"
+                        anchors.right: parent.right
+                        text: "[SUPER / ESC TO CLOSE]"
                         color: SageState.textMuted
                         font.family: "JetBrainsMono Nerd Font"
                         font.pixelSize: 10
@@ -111,22 +127,24 @@ Variants {
                     }
                 }
 
-                // Search Input Box
+                // Search Box
                 Rectangle {
-                    Layout.fillWidth: true
+                    width: 616
                     height: 42
                     radius: 6
                     color: SageState.bgCard
                     border.width: 1.5
                     border.color: SageState.secondaryAccent
 
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 14
-                        anchors.rightMargin: 14
+                    Row {
+                        x: 14
+                        y: 7
+                        width: 588
+                        height: 28
                         spacing: 10
 
                         Text {
+                            anchors.verticalCenter: parent.verticalCenter
                             text: "▸"
                             color: SageState.secondaryAccent
                             font.family: "JetBrainsMono Nerd Font"
@@ -136,7 +154,9 @@ Variants {
 
                         TextField {
                             id: searchField
-                            Layout.fillWidth: true
+                            width: 556
+                            height: 28
+                            verticalAlignment: TextInput.AlignVCenter
                             placeholderText: "Query Great Sage to summon application..."
                             placeholderTextColor: SageState.textMuted
                             color: SageState.textPrimary
@@ -148,7 +168,33 @@ Variants {
                                 launcherWindow.queryText = text;
                                 launcherWindow.selectedIndex = 0;
                             }
-                            Keys.onEscapePressed: SageState.launcherOpen = false
+                            onActiveFocusChanged: {
+                                if (!activeFocus && launcherWindow.visible) {
+                                    focusGuardTimer.restart();
+                                }
+                            }
+                            Keys.onPressed: (event) => {
+                                if (event.key === Qt.Key_Super_L || event.key === Qt.Key_Super_R || event.key === Qt.Key_Meta) {
+                                    launcherWindow.superPressedInside = true;
+                                    event.accepted = true;
+                                } else {
+                                    launcherWindow.superPressedInside = false;
+                                }
+                            }
+                            Keys.onReleased: (event) => {
+                                if (event.key === Qt.Key_Super_L || event.key === Qt.Key_Super_R || event.key === Qt.Key_Meta) {
+                                    if (launcherWindow.superPressedInside) {
+                                        launcherWindow.superPressedInside = false;
+                                        SageState.lastLauncherToggleTime = Date.now();
+                                        SageState.launcherOpen = false;
+                                    }
+                                    event.accepted = true;
+                                }
+                            }
+                            Keys.onEscapePressed: {
+                                SageState.lastLauncherToggleTime = Date.now();
+                                SageState.launcherOpen = false;
+                            }
                             Keys.onDownPressed: {
                                 if (launcherWindow.filteredApps.length > 0) {
                                     launcherWindow.selectedIndex = Math.min(launcherWindow.filteredApps.length - 1, launcherWindow.selectedIndex + 1);
@@ -167,9 +213,10 @@ Variants {
                     }
                 }
 
-                // Quick Special Workspace Summon Row (Caelestia Quick Row)
-                RowLayout {
-                    Layout.fillWidth: true
+                // Quick Special Workspaces Row
+                Row {
+                    width: 616
+                    height: 30
                     spacing: 8
 
                     Repeater {
@@ -178,8 +225,8 @@ Variants {
                         Rectangle {
                             id: quickWsBtn
                             required property var modelData
-                            Layout.fillWidth: true
-                            height: 28
+                            width: Math.floor((616 - (Math.max(1, SageState.specialWorkspaces.length) - 1) * 8) / Math.max(1, SageState.specialWorkspaces.length))
+                            height: 30
                             radius: 4
                             color: SageState.bgCard
                             border.width: 1
@@ -208,14 +255,14 @@ Variants {
 
                 // Application Results List
                 Flickable {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
+                    width: 616
+                    height: 292
                     contentHeight: appCol.implicitHeight
                     clip: true
 
-                    ColumnLayout {
+                    Column {
                         id: appCol
-                        width: parent.width
+                        width: 616
                         spacing: 6
 
                         Repeater {
@@ -227,7 +274,7 @@ Variants {
                                 required property int index
                                 readonly property bool isSel: index === launcherWindow.selectedIndex
 
-                                Layout.fillWidth: true
+                                width: 616
                                 height: 46
                                 radius: 5
                                 color: isSel || appMouse.containsMouse
@@ -238,15 +285,17 @@ Variants {
                                               ? SageState.secondaryAccent
                                               : Qt.rgba(SageState.primaryAccent.r, SageState.primaryAccent.g, SageState.primaryAccent.b, 0.28)
 
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: 14
-                                    anchors.rightMargin: 14
+                                Row {
+                                    x: 14
+                                    y: 8
+                                    width: 588
+                                    height: 30
                                     spacing: 12
 
                                     Rectangle {
-                                        width: 26
-                                        height: 26
+                                        width: 28
+                                        height: 28
+                                        anchors.verticalCenter: parent.verticalCenter
                                         radius: 4
                                         color: SageState.bgSurface
                                         border.width: 1
@@ -264,12 +313,13 @@ Variants {
                                         }
                                     }
 
-                                    ColumnLayout {
-                                        Layout.fillWidth: true
+                                    Column {
+                                        width: 470
+                                        anchors.verticalCenter: parent.verticalCenter
                                         spacing: 1
 
                                         Text {
-                                            Layout.fillWidth: true
+                                            width: 470
                                             text: appRow.modelData.name !== undefined ? appRow.modelData.name : "Application"
                                             color: SageState.textPrimary
                                             font.family: "JetBrainsMono Nerd Font"
@@ -279,7 +329,7 @@ Variants {
                                         }
 
                                         Text {
-                                            Layout.fillWidth: true
+                                            width: 470
                                             text: appRow.modelData.desc !== undefined && appRow.modelData.desc.length > 0
                                                   ? appRow.modelData.desc
                                                   : appRow.modelData.exec
@@ -291,6 +341,9 @@ Variants {
                                     }
 
                                     Text {
+                                        width: 66
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        horizontalAlignment: Text.AlignRight
                                         text: "SUMMON ▸"
                                         color: appRow.isSel ? SageState.secondaryAccent : SageState.primaryAccent
                                         font.family: "JetBrainsMono Nerd Font"

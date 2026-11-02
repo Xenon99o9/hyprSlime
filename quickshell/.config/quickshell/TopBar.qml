@@ -1,8 +1,7 @@
-
 import QtQuick
-import QtQuick.Layouts
 import Quickshell
 import Quickshell.Hyprland
+import Quickshell.Services.SystemTray
 
 Variants {
     model: Quickshell.screens
@@ -21,8 +20,19 @@ Variants {
         implicitHeight: 50
         color: "transparent"
 
+        property bool showSpecialLayer: false
+        readonly property string activeSpecialLabel: {
+            const list = SageState.specialWorkspaces;
+            for (let i = 0; i < list.length; ++i) {
+                if (list[i].visible === true) {
+                    return list[i].label !== undefined ? list[i].label : "SPECIAL";
+                }
+            }
+            return "";
+        }
+
         // ═══════════════════════════════════════════════════════════════════════
-        // 1. LEFT ISLAND: Great Sage Emblem + Launcher + Workspaces + Special WS
+        // 1. LEFT ISLAND: RAPHAEL Emblem + Normal Workspaces (Special WS Hidden Behind)
         // ═══════════════════════════════════════════════════════════════════════
         SageFrame {
             id: leftIsland
@@ -91,41 +101,6 @@ Variants {
                     }
                 }
 
-                // Bottom-Center App Launcher Trigger (Caelestia Style)
-                Rectangle {
-                    height: 26
-                    width: appBtnText.implicitWidth + 16
-                    radius: 4
-                    anchors.verticalCenter: parent.verticalCenter
-                    color: SageState.launcherOpen
-                           ? Qt.rgba(SageState.primaryAccent.r, SageState.primaryAccent.g, SageState.primaryAccent.b, 0.25)
-                           : (appBtnMouse.containsMouse ? SageState.bgCardHover : "transparent")
-                    border.width: 1
-                    border.color: SageState.launcherOpen
-                                  ? SageState.primaryAccent
-                                  : Qt.rgba(SageState.primaryAccent.r, SageState.primaryAccent.g, SageState.primaryAccent.b, 0.4)
-
-                    Text {
-                        id: appBtnText
-                        anchors.centerIn: parent
-                        text: "APPS"
-                        color: SageState.launcherOpen ? SageState.secondaryAccent : SageState.primaryAccent
-                        font.family: "JetBrainsMono Nerd Font"
-                        font.pixelSize: 10
-                        font.bold: true
-                        font.letterSpacing: 1
-                    }
-
-                    MouseArea {
-                        id: appBtnMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: SageState.toggleLauncher()
-                    }
-                }
-
-                // Divider
                 Rectangle {
                     width: 1
                     height: 18
@@ -133,10 +108,11 @@ Variants {
                     color: Qt.rgba(SageState.primaryAccent.r, SageState.primaryAccent.g, SageState.primaryAccent.b, 0.35)
                 }
 
-                // Workspaces 1..6 (plus active higher workspaces)
+                // Normal Workspaces 1..6 (Special Workspaces hidden behind)
                 Row {
                     spacing: 4
                     anchors.verticalCenter: parent.verticalCenter
+                    visible: !barWindow.showSpecialLayer
 
                     Repeater {
                         model: 6
@@ -175,24 +151,39 @@ Variants {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: Hyprland.dispatch("workspace " + wsPill.wsId)
+                                onClicked: Hyprland.dispatch("hl.dsp.focus({ workspace = " + wsPill.wsId + " })")
                             }
                         }
                     }
                 }
 
-                // Divider before Special Workspaces
+                // Active Special Workspace Indicator (When open over normal workspaces)
                 Rectangle {
-                    width: 1
-                    height: 18
+                    visible: !barWindow.showSpecialLayer && barWindow.activeSpecialLabel.length > 0
+                    height: 24
+                    width: actSpecText.implicitWidth + 16
+                    radius: 4
                     anchors.verticalCenter: parent.verticalCenter
-                    color: Qt.rgba(SageState.secondaryAccent.r, SageState.secondaryAccent.g, SageState.secondaryAccent.b, 0.45)
+                    color: Qt.rgba(SageState.secondaryAccent.r, SageState.secondaryAccent.g, SageState.secondaryAccent.b, 0.25)
+                    border.width: 1
+                    border.color: SageState.secondaryAccent
+
+                    Text {
+                        id: actSpecText
+                        anchors.centerIn: parent
+                        text: "◈ " + barWindow.activeSpecialLabel
+                        color: SageState.secondaryAccent
+                        font.family: "JetBrainsMono Nerd Font"
+                        font.pixelSize: 10
+                        font.bold: true
+                    }
                 }
 
-                // Caelestia-style Special Workspaces (MUS / SYS / CHT / WEB)
+                // Hidden Special Workspaces Layer (Revealed when flipping behind normal workspaces)
                 Row {
                     spacing: 5
                     anchors.verticalCenter: parent.verticalCenter
+                    visible: barWindow.showSpecialLayer
 
                     Repeater {
                         model: SageState.specialWorkspaces
@@ -203,21 +194,17 @@ Variants {
                             readonly property bool isRunning: modelData.running === true
                             readonly property string codeText: modelData.short !== undefined && modelData.short.length > 0
                                                                ? modelData.short
-                                                               : (modelData.label !== undefined ? modelData.label.substring(0, 3) : "SPC")
+                                                               : "SPC"
 
                             height: 24
                             width: specBadgeRow.implicitWidth + 14
                             radius: 4
                             anchors.verticalCenter: parent.verticalCenter
-                            color: specMouse.containsMouse
-                                   ? Qt.rgba(SageState.secondaryAccent.r, SageState.secondaryAccent.g, SageState.secondaryAccent.b, 0.28)
-                                   : (isRunning
-                                      ? Qt.rgba(SageState.primaryAccent.r, SageState.primaryAccent.g, SageState.primaryAccent.b, 0.2)
-                                      : SageState.bgCard)
+                            color: isRunning
+                                   ? Qt.rgba(SageState.secondaryAccent.r, SageState.secondaryAccent.g, SageState.secondaryAccent.b, 0.24)
+                                   : SageState.bgCard
                             border.width: 1
-                            border.color: isRunning
-                                          ? SageState.secondaryAccent
-                                          : Qt.rgba(SageState.primaryAccent.r, SageState.primaryAccent.g, SageState.primaryAccent.b, 0.35)
+                            border.color: isRunning ? SageState.secondaryAccent : SageState.primaryAccent
 
                             Row {
                                 id: specBadgeRow
@@ -243,55 +230,44 @@ Variants {
                             }
 
                             MouseArea {
-                                id: specMouse
                                 anchors.fill: parent
-                                hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
-                                acceptedButtons: Qt.LeftButton | Qt.RightButton
-                                onClicked: function(mouse) {
-                                    if (mouse.button === Qt.RightButton) {
-                                        SageState.openDashboardTab(1);
-                                    } else {
-                                        SageState.toggleSpecialWs(specBadge.modelData.id);
-                                    }
-                                }
+                                onClicked: SageState.toggleSpecialWs(specBadge.modelData.id)
                             }
                         }
                     }
+                }
 
-                    // [+] Quick button to open Special Workspaces Manager
-                    Rectangle {
-                        height: 24
-                        width: 24
-                        radius: 4
-                        anchors.verticalCenter: parent.verticalCenter
-                        color: addSpecMouse.containsMouse ? SageState.bgCardHover : SageState.bgCard
-                        border.width: 1
-                        border.color: Qt.rgba(SageState.secondaryAccent.r, SageState.secondaryAccent.g, SageState.secondaryAccent.b, 0.45)
+                // Flip Button to peek at hidden Special Workspaces behind normal ones
+                Rectangle {
+                    height: 24
+                    width: 24
+                    radius: 4
+                    anchors.verticalCenter: parent.verticalCenter
+                    color: barWindow.showSpecialLayer ? SageState.secondaryAccent : SageState.bgCard
+                    border.width: 1
+                    border.color: SageState.secondaryAccent
 
-                        Text {
-                            anchors.centerIn: parent
-                            text: "+"
-                            color: SageState.secondaryAccent
-                            font.family: "JetBrainsMono Nerd Font"
-                            font.pixelSize: 13
-                            font.bold: true
-                        }
+                    Text {
+                        anchors.centerIn: parent
+                        text: barWindow.showSpecialLayer ? "◂" : "▸"
+                        color: barWindow.showSpecialLayer ? "#050911" : SageState.secondaryAccent
+                        font.family: "JetBrainsMono Nerd Font"
+                        font.pixelSize: 11
+                        font.bold: true
+                    }
 
-                        MouseArea {
-                            id: addSpecMouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: SageState.openDashboardTab(1)
-                        }
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: barWindow.showSpecialLayer = !barWindow.showSpecialLayer
                     }
                 }
             }
         }
 
         // ═══════════════════════════════════════════════════════════════════════
-        // 2. CENTER ISLAND: Clock + Date + Media (Clicks open Caelestia Top Menu)
+        // 2. CENTER ISLAND: Clock + Date + Media (Hover or Click opens Caelestia Top HUD)
         // ═══════════════════════════════════════════════════════════════════════
         SageFrame {
             id: centerIsland
@@ -346,7 +322,6 @@ Variants {
                     font.bold: true
                 }
 
-                // Media indicator pill when audio is playing
                 Rectangle {
                     visible: SageState.mediaText.length > 0
                     height: 22
@@ -373,12 +348,18 @@ Variants {
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
+                onEntered: {
+                    if (!SageState.dashboardOpen && !SageState.launcherOpen) {
+                        SageState.topDropdownOpen = true;
+                        SageState.cornerMenuOpen = false;
+                    }
+                }
                 onClicked: SageState.toggleTopDropdown()
             }
         }
 
         // ═══════════════════════════════════════════════════════════════════════
-        // 3. RIGHT ISLAND: Clean Telemetry (No Wi-Fi SSID Clutter, Zero Emojis)
+        // 3. RIGHT ISLAND: Clean Telemetry + [ MENU ] Button -> Opens Dashboard
         // ═══════════════════════════════════════════════════════════════════════
         SageFrame {
             id: rightIsland
@@ -401,7 +382,179 @@ Variants {
                 anchors.centerIn: parent
                 spacing: 8
 
-                // CPU + RAM Compact Pill
+                // Background & System Tray Apps Logos Pill (Left of CPU)
+                Rectangle {
+                    readonly property int trayCount: SystemTray.items.values ? SystemTray.items.values.length : 0
+                    readonly property var extraBgApps: {
+                        const trayList = SystemTray.items.values || [];
+                        const out = [];
+                        for (let i = 0; i < SageState.runningApps.length; ++i) {
+                            const app = SageState.runningApps[i];
+                            const k = (app.id || "").toLowerCase();
+                            let inTray = false;
+                            for (let j = 0; j < trayList.length; ++j) {
+                                const tid = ((trayList[j].id || "") + " " + (trayList[j].title || "") + " " + (trayList[j].tooltipTitle || "")).toLowerCase();
+                                if (k.length > 0 && tid.indexOf(k) !== -1) {
+                                    inTray = true;
+                                    break;
+                                }
+                            }
+                            if (!inTray) {
+                                out.push(app);
+                            }
+                        }
+                        return out;
+                    }
+
+                    visible: (trayCount + extraBgApps.length) > 0
+                    height: 24
+                    width: runningAppsRow.implicitWidth + 10
+                    radius: 4
+                    anchors.verticalCenter: parent.verticalCenter
+                    color: SageState.bgCard
+                    border.width: 1
+                    border.color: Qt.rgba(SageState.primaryAccent.r, SageState.primaryAccent.g, SageState.primaryAccent.b, 0.35)
+
+                    Row {
+                        id: runningAppsRow
+                        anchors.centerIn: parent
+                        spacing: 4
+
+                        // 1. Native System Tray Apps (Discord closed to tray, Steam, Telegram, etc.)
+                        Repeater {
+                            model: SystemTray.items
+
+                            Rectangle {
+                                id: trayBadge
+                                required property var modelData
+                                width: 20
+                                height: 20
+                                radius: 4
+                                anchors.verticalCenter: parent.verticalCenter
+                                color: trayMouse.containsMouse
+                                       ? Qt.rgba(SageState.primaryAccent.r, SageState.primaryAccent.g, SageState.primaryAccent.b, 0.25)
+                                       : "transparent"
+                                border.width: trayMouse.containsMouse ? 1 : 0
+                                border.color: SageState.secondaryAccent
+
+                                Image {
+                                    anchors.centerIn: parent
+                                    width: 15
+                                    height: 15
+                                    source: trayBadge.modelData.icon || ""
+                                    smooth: true
+                                    mipmap: true
+                                    fillMode: Image.PreserveAspectFit
+                                }
+
+                                Rectangle {
+                                    width: 4
+                                    height: 4
+                                    radius: 2
+                                    anchors.right: parent.right
+                                    anchors.bottom: parent.bottom
+                                    anchors.rightMargin: 1
+                                    anchors.bottomMargin: 1
+                                    color: SageState.emeraldOk
+                                }
+
+                                MouseArea {
+                                    id: trayMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: function(mouse) {
+                                        if (mouse.button === Qt.RightButton) {
+                                            if (trayBadge.modelData.hasMenu) {
+                                                const pos = trayBadge.mapToItem(null, 0, trayBadge.height + 4);
+                                                trayBadge.modelData.display(barWindow, Math.round(pos.x), Math.round(pos.y));
+                                            } else {
+                                                trayBadge.modelData.secondaryActivate();
+                                            }
+                                        } else if (mouse.button === Qt.MiddleButton) {
+                                            trayBadge.modelData.secondaryActivate();
+                                        } else {
+                                            if (trayBadge.modelData.onlyMenu && trayBadge.modelData.hasMenu) {
+                                                const pos = trayBadge.mapToItem(null, 0, trayBadge.height + 4);
+                                                trayBadge.modelData.display(barWindow, Math.round(pos.x), Math.round(pos.y));
+                                            } else {
+                                                trayBadge.modelData.activate();
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // 2. Fallback Background Daemons & Hidden Special Workspace Apps
+                        Repeater {
+                            model: parent.parent.extraBgApps
+
+                            Rectangle {
+                                id: appBadge
+                                required property var modelData
+                                width: 20
+                                height: 20
+                                radius: 4
+                                anchors.verticalCenter: parent.verticalCenter
+                                color: appMouse.containsMouse
+                                       ? Qt.rgba(SageState.primaryAccent.r, SageState.primaryAccent.g, SageState.primaryAccent.b, 0.25)
+                                       : "transparent"
+                                border.width: appMouse.containsMouse ? 1 : 0
+                                border.color: SageState.secondaryAccent
+
+                                Image {
+                                    id: appLogoImg
+                                    anchors.centerIn: parent
+                                    width: 15
+                                    height: 15
+                                    source: appBadge.modelData.icon && appBadge.modelData.icon.length > 0
+                                            ? ("file://" + appBadge.modelData.icon)
+                                            : ""
+                                    visible: status === Image.Ready
+                                    smooth: true
+                                    mipmap: true
+                                    fillMode: Image.PreserveAspectFit
+                                }
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    visible: !appLogoImg.visible
+                                    text: (appBadge.modelData.name || appBadge.modelData.id || "?").slice(0, 2).toUpperCase()
+                                    color: SageState.secondaryAccent
+                                    font.family: "JetBrainsMono Nerd Font"
+                                    font.pixelSize: 8
+                                    font.bold: true
+                                }
+
+                                // Status dot (Gold = Special Workspace, Emerald = Background Tray)
+                                Rectangle {
+                                    width: 4
+                                    height: 4
+                                    radius: 2
+                                    anchors.right: parent.right
+                                    anchors.bottom: parent.bottom
+                                    anchors.rightMargin: 1
+                                    anchors.bottomMargin: 1
+                                    color: appBadge.modelData.isSpecial
+                                           ? SageState.secondaryAccent
+                                           : SageState.emeraldOk
+                                }
+
+                                MouseArea {
+                                    id: appMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: SageState.focusRunningApp(appBadge.modelData)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // CPU + RAM Pill
                 Rectangle {
                     height: 24
                     width: sysRow.implicitWidth + 16
@@ -450,7 +603,7 @@ Variants {
                     }
                 }
 
-                // VPN Badge (Only shown when active)
+                // VPN Badge
                 Rectangle {
                     visible: SageState.vpnActive
                     height: 24
@@ -474,11 +627,11 @@ Variants {
                     MouseArea {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: SageState.openDashboardTab(3)
+                        onClicked: SageState.openDashboardTab(4)
                     }
                 }
 
-                // Volume Pill (Scroll or click to mute)
+                // Volume Pill
                 Rectangle {
                     height: 24
                     width: volText.implicitWidth + 14
@@ -534,7 +687,115 @@ Variants {
                     }
                 }
 
-                // Keyboard Layout Pill (Click to cycle FR / US)
+                // Power Mode Pill (ECO / BAL / PERF) with Vector Logo & Click-to-Cycle
+                Rectangle {
+                    id: pwrPill
+                    height: 24
+                    width: pwrRow.implicitWidth + 14
+                    radius: 4
+                    anchors.verticalCenter: parent.verticalCenter
+                    readonly property color modeColor: {
+                        if (SageState.powerProfile === "power-saver") return SageState.emeraldOk;
+                        if (SageState.powerProfile === "performance") return SageState.secondaryAccent;
+                        return SageState.primaryAccent;
+                    }
+                    color: pwrMouse.containsMouse
+                           ? Qt.rgba(modeColor.r, modeColor.g, modeColor.b, 0.22)
+                           : SageState.bgCard
+                    border.width: 1
+                    border.color: Qt.rgba(modeColor.r, modeColor.g, modeColor.b, pwrMouse.containsMouse ? 0.85 : 0.45)
+
+                    Row {
+                        id: pwrRow
+                        anchors.centerIn: parent
+                        spacing: 5
+
+                        // Custom Vector Mode Logo (Leaf for Eco, Diamond Core for Balanced, Lightning Bolt for Perf)
+                        Canvas {
+                            id: pwrIconCanvas
+                            width: 12
+                            height: 12
+                            anchors.verticalCenter: parent.verticalCenter
+                            property string currentMode: SageState.powerProfile
+                            property color iconColor: pwrPill.modeColor
+                            onCurrentModeChanged: requestPaint()
+                            onIconColorChanged: requestPaint()
+
+                            onPaint: {
+                                var ctx = getContext("2d");
+                                ctx.reset();
+                                ctx.fillStyle = iconColor.toString();
+                                ctx.strokeStyle = iconColor.toString();
+                                ctx.lineWidth = 1.4;
+
+                                if (currentMode === "power-saver") {
+                                    // Eco Leaf / Crescent Rune
+                                    ctx.beginPath();
+                                    ctx.moveTo(2, 10);
+                                    ctx.quadraticCurveTo(2, 2, 10, 2);
+                                    ctx.quadraticCurveTo(10, 10, 2, 10);
+                                    ctx.closePath();
+                                    ctx.stroke();
+                                    ctx.beginPath();
+                                    ctx.moveTo(2, 10);
+                                    ctx.lineTo(8, 4);
+                                    ctx.stroke();
+                                } else if (currentMode === "performance") {
+                                    // Performance Lightning Bolt
+                                    ctx.beginPath();
+                                    ctx.moveTo(7, 1);
+                                    ctx.lineTo(2, 6.8);
+                                    ctx.lineTo(5.8, 6.8);
+                                    ctx.lineTo(4.8, 11);
+                                    ctx.lineTo(10, 5.2);
+                                    ctx.lineTo(6.2, 5.2);
+                                    ctx.closePath();
+                                    ctx.fill();
+                                } else {
+                                    // Balanced Octagonal / Diamond Core
+                                    ctx.beginPath();
+                                    ctx.moveTo(6, 1);
+                                    ctx.lineTo(11, 6);
+                                    ctx.lineTo(6, 11);
+                                    ctx.lineTo(1, 6);
+                                    ctx.closePath();
+                                    ctx.stroke();
+                                    ctx.beginPath();
+                                    ctx.arc(6, 6, 1.8, 0, Math.PI * 2);
+                                    ctx.fill();
+                                }
+                            }
+                        }
+
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: {
+                                if (SageState.powerProfile === "power-saver") return "ECO";
+                                if (SageState.powerProfile === "performance") return "PERF";
+                                return "BAL";
+                            }
+                            color: pwrPill.modeColor
+                            font.family: "JetBrainsMono Nerd Font"
+                            font.pixelSize: 10
+                            font.bold: true
+                        }
+                    }
+
+                    MouseArea {
+                        id: pwrMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: SageState.cyclePowerProfile()
+                        onWheel: function(wheel) {
+                            if (wheel.angleDelta.y !== 0) {
+                                SageState.cyclePowerProfile();
+                            }
+                        }
+                    }
+                }
+
+                // Keyboard Layout Pill -> Opens the Keyboard Selector List in Tab 03
                 Rectangle {
                     height: 24
                     width: kbText.implicitWidth + 14
@@ -557,11 +818,7 @@ Variants {
                     MouseArea {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            const nextKb = SageState.kbLayout === "fr" ? "us" : "fr";
-                            SageState.kbLayout = nextKb;
-                            SageState.runCmd([SageState.ctlScript, "set-kb", nextKb]);
-                        }
+                        onClicked: SageState.openDashboardTab(2)
                     }
                 }
 
@@ -571,7 +828,7 @@ Variants {
                     width: 24
                     radius: 4
                     anchors.verticalCenter: parent.verticalCenter
-                    color: (SageState.dashboardOpen && SageState.activeTab === 4)
+                    color: (SageState.dashboardOpen && SageState.activeTab === 5)
                            ? SageState.secondaryAccent
                            : SageState.bgCard
                     border.width: 1
@@ -580,7 +837,7 @@ Variants {
                     Text {
                         anchors.centerIn: parent
                         text: "?"
-                        color: (SageState.dashboardOpen && SageState.activeTab === 4) ? "#050911" : SageState.secondaryAccent
+                        color: (SageState.dashboardOpen && SageState.activeTab === 5) ? "#050911" : SageState.secondaryAccent
                         font.family: "JetBrainsMono Nerd Font"
                         font.pixelSize: 12
                         font.bold: true
@@ -589,34 +846,35 @@ Variants {
                     MouseArea {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: SageState.openDashboardTab(4)
+                        onClicked: SageState.openDashboardTab(5)
                     }
                 }
 
-                // Quick Corner Menu Trigger [ SYS ]
+                // [ MENU ] Button -> Opens the Central Dashboard
                 Rectangle {
                     height: 24
-                    width: cornerLabel.implicitWidth + 14
+                    width: menuBtnLabel.implicitWidth + 16
                     radius: 4
                     anchors.verticalCenter: parent.verticalCenter
-                    color: SageState.cornerMenuOpen ? SageState.primaryAccent : SageState.bgCard
+                    color: SageState.dashboardOpen ? SageState.primaryAccent : SageState.bgCard
                     border.width: 1
                     border.color: SageState.primaryAccent
 
                     Text {
-                        id: cornerLabel
+                        id: menuBtnLabel
                         anchors.centerIn: parent
-                        text: "QUICK"
-                        color: SageState.cornerMenuOpen ? "#050911" : SageState.primaryAccent
+                        text: "MENU"
+                        color: SageState.dashboardOpen ? "#050911" : SageState.primaryAccent
                         font.family: "JetBrainsMono Nerd Font"
                         font.pixelSize: 10
                         font.bold: true
+                        font.letterSpacing: 1
                     }
 
                     MouseArea {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: SageState.toggleCornerMenu()
+                        onClicked: SageState.toggleDashboard()
                     }
                 }
             }

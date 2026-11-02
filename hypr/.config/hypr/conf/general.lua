@@ -15,8 +15,8 @@ hl.config({
             inactive_border = colors.inactive_border,
         },
 
-        resize_on_border        = true,
-        extend_border_grab_area = 15,
+        resize_on_border        = false,
+        extend_border_grab_area = 0,
         allow_tearing           = false,
         layout                  = "dwindle",
     },
@@ -24,7 +24,7 @@ hl.config({
     dwindle = {
         preserve_split = true,
         smart_split    = false,
-        smart_resizing = true,
+        smart_resizing = false,
     },
 
     master = {
@@ -36,7 +36,7 @@ hl.config({
         disable_hyprland_logo   = true,
         disable_splash_rendering = true,
         vrr                     = 1,
-        animate_manual_resizes  = true,
-        animate_mouse_windowdragging = true,
+        animate_manual_resizes  = false,
+        animate_mouse_windowdragging = false,
     },
 })

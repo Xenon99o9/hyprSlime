@@ -1,8 +1,10 @@
-
 import QtQuick
 
 Item {
     id: root
+
+    implicitWidth: 120
+    implicitHeight: 40
 
     property real chamfer: 10
     property color fillColor: SageState.bgSurface
@@ -40,7 +42,6 @@ Item {
         }
     }
 
-    // Background rotating Great Sage Octagram Seal (when enabled)
     Canvas {
         id: sealCanvas
         anchors.fill: parent
@@ -64,7 +65,6 @@ Item {
             ctx.strokeStyle = Qt.rgba(root.borderColor.r, root.borderColor.g, root.borderColor.b, root.magicCircleAlpha);
             ctx.lineWidth = 1.4;
 
-            // Outer ring
             ctx.beginPath();
             ctx.arc(0, 0, r, 0, Math.PI * 2);
             ctx.stroke();
@@ -74,7 +74,6 @@ Item {
             ctx.arc(0, 0, r * 0.91, 0, Math.PI * 2);
             ctx.stroke();
 
-            // Two squares forming the Great Sage 8-pointed Octagram
             for (let s = 0; s < 2; ++s) {
                 const offset = s * (Math.PI / 4.0);
                 ctx.beginPath();
@@ -89,7 +88,6 @@ Item {
                 ctx.stroke();
             }
 
-            // Inner octagon + core ring
             ctx.strokeStyle = Qt.rgba(root.borderColor.r, root.borderColor.g, root.borderColor.b, root.magicCircleAlpha * 0.9);
             ctx.beginPath();
             for (let i = 0; i < 8; ++i) {
@@ -110,7 +108,6 @@ Item {
         }
     }
 
-    // Chamfered 8-sided Great Sage Frame
     Canvas {
         id: frameCanvas
         anchors.fill: parent
@@ -137,17 +134,14 @@ Item {
                 ctx.closePath();
             }
 
-            // Fill
             traceOctagon(pad, c);
             ctx.fillStyle = root.fillColor;
             ctx.fill();
 
-            // Outer primary border
             ctx.lineWidth = root.borderWidth;
             ctx.strokeStyle = root.borderColor;
             ctx.stroke();
 
-            // Inner hairline Great Sage gold/secondary border
             if (root.innerBorder && w > 24 && h > 20) {
                 const inPad = pad + 3.5;
                 const inC = Math.max(2, c - 2.0);
@@ -157,7 +151,6 @@ Item {
                 ctx.stroke();
             }
 
-            // Corner diamond accents (authentic Great Sage dialog frame nodes)
             if (root.cornerDiamonds && w > 80 && h > 40) {
                 ctx.fillStyle = root.innerColor;
                 const dSize = 3.2;

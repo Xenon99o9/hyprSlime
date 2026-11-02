@@ -9,7 +9,7 @@ local M = {
     editor      = "code",
     shell       = "quickshell",
     menu        = "rofi -show drun",
-    lock        = "hyprlock",
+    lock        = "bash -c 'faillock --user \"$USER\" --reset 2>/dev/null || true; sleep 0.15; pidof hyprlock >/dev/null || hyprlock'",
     sageMenu    = os.getenv("HOME") .. "/.config/hypr/scripts/great-sage-menu.sh",
 }
 

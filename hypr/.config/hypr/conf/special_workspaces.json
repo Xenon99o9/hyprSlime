@@ -3,7 +3,7 @@
     "id": "music",
     "label": "MUSIC",
     "short": "MUS",
-    "bind": "SUPER + M",
+    "bind": "SUPER + S",
     "cmd": "spotify",
     "class": "^(Spotify|spotify)$"
   },
@@ -29,6 +29,6 @@
     "short": "WEB",
     "bind": "SUPER + B",
     "cmd": "brave",
-    "class": ""
+    "class": "^(brave-browser|Brave-browser|firefox)$"
   }
 ]

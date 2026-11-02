@@ -5,3 +5,4 @@ CentralDashboard 1.0 CentralDashboard.qml
 TopCenterMenu 1.0 TopCenterMenu.qml
 BottomLauncher 1.0 BottomLauncher.qml
 BottomRightMenu 1.0 BottomRightMenu.qml
+SageOsd 1.0 SageOsd.qml

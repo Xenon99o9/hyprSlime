@@ -11,13 +11,50 @@ ShellRoot {
     TopCenterMenu {}
     BottomLauncher {}
     BottomRightMenu {}
+    SageOsd {}
 
     // IPC Handler for Keyboard Shortcuts (`quickshell ipc call sage <fn>`)
     IpcHandler {
         target: "sage"
 
+        function volumeUp() {
+            SageState.osdVolume("up");
+        }
+
+        function volumeDown() {
+            SageState.osdVolume("down");
+        }
+
+        function volumeMute() {
+            SageState.osdVolume("mute");
+        }
+
+        function micMute() {
+            SageState.osdVolume("mic");
+        }
+
+        function brightnessUp() {
+            SageState.osdBrightness("up");
+        }
+
+        function brightnessDown() {
+            SageState.osdBrightness("down");
+        }
+
         function toggleSettings() {
             SageState.toggleDashboard();
+        }
+
+        function superPress() {
+            SageState.superPress();
+        }
+
+        function superCancel() {
+            SageState.superCancel();
+        }
+
+        function superRelease() {
+            SageState.superRelease();
         }
 
         function toggleLauncher() {
@@ -33,10 +70,10 @@ ShellRoot {
         }
 
         function toggleKeybinds() {
-            if (SageState.dashboardOpen && SageState.activeTab === 4) {
+            if (SageState.dashboardOpen && SageState.activeTab === 5) {
                 SageState.dashboardOpen = false;
             } else {
-                SageState.openDashboardTab(4);
+                SageState.openDashboardTab(5);
             }
         }
 
@@ -48,12 +85,16 @@ ShellRoot {
             SageState.openDashboardTab(2);
         }
 
+        function openDisplays() {
+            SageState.openDashboardTab(3);
+        }
+
         function nextWallpaper() {
             SageState.cycleWallpaper();
         }
 
         function openNetwork() {
-            SageState.openDashboardTab(3);
+            SageState.openDashboardTab(4);
         }
     }
 }

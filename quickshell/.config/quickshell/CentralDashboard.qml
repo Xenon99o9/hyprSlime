@@ -1,6 +1,4 @@
-
 import QtQuick
-import QtQuick.Layouts
 import QtQuick.Controls
 import Quickshell
 import Quickshell.Wayland
@@ -27,7 +25,66 @@ Variants {
         WlrLayershell.keyboardFocus: SageState.dashboardOpen ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
         exclusionMode: ExclusionMode.Ignore
 
-        // Dimmed backdrop — click outside to close
+        readonly property var currentMonitor: {
+            if (SageState.monitorList.length === 0) {
+                return {
+                    id: 0,
+                    name: "eDP-1",
+                    desc: "Built-in Display",
+                    width: 1920,
+                    height: 1080,
+                    refreshRate: 144.0,
+                    currentMode: "1920x1080@144",
+                    physW: 340,
+                    physH: 190,
+                    inches: 15.3,
+                    x: 0,
+                    y: 0,
+                    scale: 1.0,
+                    transform: 0,
+                    disabled: false,
+                    mirrorOf: "none",
+                    modes: ["1920x1080@144.00Hz", "1920x1080@60.02Hz"]
+                };
+            }
+            const idx = Math.min(SageState.selectedMonitorIndex, SageState.monitorList.length - 1);
+            return SageState.monitorList[Math.max(0, idx)];
+        }
+
+        function buildMonitorsPayload() {
+            const copy = [];
+            for (let i = 0; i < SageState.monitorList.length; ++i) {
+                const m = SageState.monitorList[i];
+                const curMode = m.width + "x" + m.height + "@" + Number(m.refreshRate).toFixed(2);
+                copy.push({
+                    name: m.name,
+                    mode: curMode,
+                    x: m.x,
+                    y: m.y,
+                    scale: m.scale,
+                    transform: m.transform,
+                    disabled: m.disabled,
+                    mirrorOf: m.mirrorOf
+                });
+            }
+            return copy;
+        }
+
+        function updateMonitorField(idx, field, val) {
+            const copy = buildMonitorsPayload();
+            if (idx < 0 || idx >= copy.length) return;
+            copy[idx][field] = val;
+            SageState.applyMonitors(copy);
+        }
+
+        function updateMonitorPos(idx, newX, newY) {
+            const copy = buildMonitorsPayload();
+            if (idx < 0 || idx >= copy.length) return;
+            copy[idx].x = newX;
+            copy[idx].y = newY;
+            SageState.applyMonitors(copy);
+        }
+
         Rectangle {
             anchors.fill: parent
             color: "#8803060c"
@@ -57,55 +114,58 @@ Variants {
             showMagicCircle: true
             magicCircleAlpha: 0.065
 
-            // Prevent click-through inside dialog
             MouseArea {
                 anchors.fill: parent
             }
 
-            ColumnLayout {
-                anchors.fill: parent
-                anchors.margins: 24
-                spacing: 16
+            Column {
+                x: 24
+                y: 22
+                width: 1032
+                height: 606
+                spacing: 14
 
-                // ─── TOP HEADER BAR + NAVIGATION TABS ────────────────────────
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 14
+                // ─── TOP HEADER BAR + NAVIGATION TABS (Zero Overlap!) ────────
+                Item {
+                    width: 1032
+                    height: 36
 
-                    // Great Sage System Title Box
                     Column {
+                        width: 240
+                        anchors.left: parent.left
+                        anchors.verticalCenter: parent.verticalCenter
                         spacing: 2
                         Text {
-                            text: "◈ « REPORT: GREAT SAGE CENTRAL NEXUS // RAPHAEL OS »"
+                            text: "◈ RAPHAEL OS // NEXUS"
                             color: SageState.secondaryAccent
                             font.family: "JetBrainsMono Nerd Font"
                             font.pixelSize: 12
                             font.bold: true
-                            font.letterSpacing: 1.4
+                            font.letterSpacing: 1.1
                         }
                         Text {
-                            text: "TENSEI SHITARA SLIME DATTA KEN  •  CAELESTIA + END-4 HYBRID SHELL"
+                            text: "CAELESTIA + END-4 HYBRID SHELL"
                             color: SageState.primaryAccent
                             font.family: "JetBrainsMono Nerd Font"
                             font.pixelSize: 9
                             font.bold: true
-                            font.letterSpacing: 1.0
                         }
                     }
 
-                    Item { Layout.fillWidth: true }
-
-                    // 5 Navigation Tabs
                     Row {
+                        anchors.right: closeBtn.left
+                        anchors.rightMargin: 8
+                        anchors.verticalCenter: parent.verticalCenter
                         spacing: 6
 
                         Repeater {
                             model: [
-                                { idx: 0, label: "01 // DASHBOARD" },
+                                { idx: 0, label: "01 // NEXUS" },
                                 { idx: 1, label: "02 // SPECIAL WS" },
-                                { idx: 2, label: "03 // WALLPAPER & THEME" },
-                                { idx: 3, label: "04 // NETWORK & VPN" },
-                                { idx: 4, label: "05 // KEYBINDS" }
+                                { idx: 2, label: "03 // THEME & WALLS" },
+                                { idx: 3, label: "04 // DISPLAYS" },
+                                { idx: 4, label: "05 // NETWORK" },
+                                { idx: 5, label: "06 // KEYBINDS" }
                             ]
 
                             SageFrame {
@@ -113,7 +173,7 @@ Variants {
                                 required property var modelData
                                 readonly property bool isActive: SageState.activeTab === modelData.idx
 
-                                width: navTabText.implicitWidth + 24
+                                width: navTabText.implicitWidth + 18
                                 height: 34
                                 chamfer: 7
                                 fillColor: isActive
@@ -139,15 +199,18 @@ Variants {
                                         SageState.activeTab = navTab.modelData.idx;
                                         if (navTab.modelData.idx === 1) SageState.loadSpecialWorkspaces();
                                         if (navTab.modelData.idx === 2) SageState.loadWallpapers();
-                                        if (navTab.modelData.idx === 3) SageState.scanWifi();
+                                        if (navTab.modelData.idx === 3) SageState.loadMonitors();
+                                        if (navTab.modelData.idx === 4) SageState.scanWifi();
                                     }
                                 }
                             }
                         }
                     }
 
-                    // Close Button [ ✕ ]
                     SageFrame {
+                        id: closeBtn
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
                         width: 34
                         height: 34
                         chamfer: 7
@@ -172,46 +235,46 @@ Variants {
                     }
                 }
 
-                // Decorative Gold/Cyan Separator Line
                 Rectangle {
-                    Layout.fillWidth: true
+                    width: 1032
                     height: 1
                     color: Qt.rgba(SageState.secondaryAccent.r, SageState.secondaryAccent.g, SageState.secondaryAccent.b, 0.45)
                 }
 
                 // ═══════════════════════════════════════════════════════════════
-                // TAB 0: OVERVIEW DASHBOARD (Caelestia Left + end-4 Right)
+                // TAB 0: OVERVIEW DASHBOARD (472px Left + 18px Gap + 542px Right = 1032px)
                 // ═══════════════════════════════════════════════════════════════
-                RowLayout {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
+                Row {
+                    width: 1032
+                    height: 540
                     visible: SageState.activeTab === 0
                     spacing: 18
 
-                    // LEFT COLUMN: Rimuru Tempest Profile + Quick Special Workspaces
-                    ColumnLayout {
-                        Layout.preferredWidth: 440
-                        Layout.fillHeight: true
+                    // LEFT COLUMN (Width: 472, Height: 540)
+                    Column {
+                        width: 472
+                        height: 540
                         spacing: 14
 
-                        // Rimuru Tempest / Great Sage Profile Card
+                        // 1. Rimuru Tempest / Great Sage Profile Card (472 x 186)
                         SageFrame {
-                            Layout.fillWidth: true
-                            height: 195
+                            width: 472
+                            height: 186
                             chamfer: 12
                             fillColor: SageState.bgCard
                             borderColor: SageState.secondaryAccent
                             innerBorder: true
 
-                            RowLayout {
-                                anchors.fill: parent
-                                anchors.margins: 18
+                            Row {
+                                x: 18
+                                y: 18
+                                width: 436
+                                height: 150
                                 spacing: 18
 
-                                // Rimuru Slime Avatar inside Octagonal Frame
                                 Rectangle {
-                                    width: 126
-                                    height: 126
+                                    width: 146
+                                    height: 146
                                     radius: 10
                                     color: SageState.bgVoid
                                     border.width: 2
@@ -226,8 +289,9 @@ Variants {
                                     }
                                 }
 
-                                ColumnLayout {
-                                    Layout.fillWidth: true
+                                Column {
+                                    width: 272
+                                    anchors.verticalCenter: parent.verticalCenter
                                     spacing: 6
 
                                     Text {
@@ -256,13 +320,13 @@ Variants {
                                     }
 
                                     Rectangle {
-                                        Layout.fillWidth: true
+                                        width: 260
                                         height: 1
                                         color: Qt.rgba(SageState.primaryAccent.r, SageState.primaryAccent.g, SageState.primaryAccent.b, 0.3)
                                     }
 
                                     Text {
-                                        text: "TIME   // " + SageState.clockTime + " (" + SageState.clockDate + ")"
+                                        text: "TIME  // " + SageState.clockTime + " (" + SageState.clockDate + ")"
                                         color: SageState.textPrimary
                                         font.family: "JetBrainsMono Nerd Font"
                                         font.pixelSize: 11
@@ -270,7 +334,7 @@ Variants {
                                     }
 
                                     Text {
-                                        text: "SKILL  // " + SageState.themeName.toUpperCase() + "  |  KB: " + SageState.kbLayout.toUpperCase()
+                                        text: "SKILL // " + SageState.themeName.toUpperCase() + "  |  KB: " + SageState.kbLayout.toUpperCase()
                                         color: SageState.secondaryAccent
                                         font.family: "JetBrainsMono Nerd Font"
                                         font.pixelSize: 10
@@ -280,31 +344,34 @@ Variants {
                             }
                         }
 
-                        // Special Workspaces Summon Matrix (Caelestia Quick Cards)
+                        // 2. Special Workspaces Summon Matrix (472 x 340, Cards 212 x 116 -> Zero overflow!)
                         SageFrame {
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
+                            width: 472
+                            height: 340
                             chamfer: 12
                             fillColor: SageState.bgCard
                             borderColor: SageState.primaryAccent
                             innerBorder: true
 
-                            ColumnLayout {
-                                anchors.fill: parent
-                                anchors.margins: 16
-                                spacing: 10
+                            Column {
+                                x: 18
+                                y: 16
+                                width: 436
+                                spacing: 12
 
-                                RowLayout {
-                                    Layout.fillWidth: true
+                                Item {
+                                    width: 436
+                                    height: 20
                                     Text {
+                                        anchors.left: parent.left
                                         text: "◈ CAELESTIA SPECIAL WORKSPACES"
                                         color: SageState.secondaryAccent
                                         font.family: "JetBrainsMono Nerd Font"
                                         font.pixelSize: 11
                                         font.bold: true
                                     }
-                                    Item { Layout.fillWidth: true }
                                     Text {
+                                        anchors.right: parent.right
                                         text: "CONFIGURE ▸"
                                         color: SageState.primaryAccent
                                         font.family: "JetBrainsMono Nerd Font"
@@ -318,12 +385,10 @@ Variants {
                                     }
                                 }
 
-                                GridLayout {
-                                    Layout.fillWidth: true
-                                    Layout.fillHeight: true
+                                Grid {
+                                    width: 436
                                     columns: 2
-                                    rowSpacing: 10
-                                    columnSpacing: 10
+                                    spacing: 12
 
                                     Repeater {
                                         model: SageState.specialWorkspaces
@@ -331,29 +396,33 @@ Variants {
                                         Rectangle {
                                             id: dashSpecCard
                                             required property var modelData
-                                            Layout.fillWidth: true
-                                            Layout.fillHeight: true
+                                            width: 212
+                                            height: 118
                                             radius: 6
                                             color: dashSpecMouse.containsMouse ? SageState.bgCardHover : SageState.bgSurface
                                             border.width: 1.5
                                             border.color: modelData.running ? SageState.secondaryAccent : SageState.primaryAccent
 
-                                            ColumnLayout {
-                                                anchors.fill: parent
-                                                anchors.margins: 12
-                                                spacing: 4
+                                            Column {
+                                                x: 14
+                                                y: 12
+                                                width: 184
+                                                spacing: 6
 
-                                                RowLayout {
-                                                    Layout.fillWidth: true
+                                                Item {
+                                                    width: 184
+                                                    height: 18
                                                     Text {
+                                                        anchors.left: parent.left
                                                         text: "◈ " + dashSpecCard.modelData.label
                                                         color: SageState.textPrimary
                                                         font.family: "JetBrainsMono Nerd Font"
-                                                        font.pixelSize: 13
+                                                        font.pixelSize: 12
                                                         font.bold: true
                                                     }
-                                                    Item { Layout.fillWidth: true }
                                                     Rectangle {
+                                                        anchors.right: parent.right
+                                                        anchors.verticalCenter: parent.verticalCenter
                                                         width: 8
                                                         height: 8
                                                         radius: 4
@@ -362,6 +431,7 @@ Variants {
                                                 }
 
                                                 Text {
+                                                    width: 184
                                                     text: "KEYBIND: " + dashSpecCard.modelData.bind
                                                     color: SageState.secondaryAccent
                                                     font.family: "JetBrainsMono Nerd Font"
@@ -370,12 +440,20 @@ Variants {
                                                 }
 
                                                 Text {
-                                                    Layout.fillWidth: true
+                                                    width: 184
                                                     text: "CMD: " + dashSpecCard.modelData.cmd
                                                     color: SageState.textMuted
                                                     font.family: "JetBrainsMono Nerd Font"
                                                     font.pixelSize: 9
                                                     elide: Text.ElideRight
+                                                }
+
+                                                Text {
+                                                    text: dashSpecCard.modelData.running ? "STATUS: RUNNING ▸" : "CLICK TO SUMMON ▸"
+                                                    color: dashSpecCard.modelData.running ? SageState.emeraldOk : SageState.primaryAccent
+                                                    font.family: "JetBrainsMono Nerd Font"
+                                                    font.pixelSize: 9
+                                                    font.bold: true
                                                 }
                                             }
 
@@ -396,28 +474,28 @@ Variants {
                         }
                     }
 
-                    // RIGHT COLUMN: end-4 Style Bento Quick Toggles + Sliders + Telemetry
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
+                    // RIGHT COLUMN (Width: 542, Height: 540)
+                    Column {
+                        width: 542
+                        height: 540
                         spacing: 14
 
-                        // 3 Telemetry Stat Boxes
-                        RowLayout {
-                            Layout.fillWidth: true
-                            height: 86
-                            spacing: 12
+                        // 1. Three Telemetry Stat Boxes
+                        Row {
+                            width: 542
+                            height: 90
+                            spacing: 10
 
                             SageFrame {
-                                Layout.fillWidth: true
-                                Layout.fillHeight: true
+                                width: 174
+                                height: 90
                                 chamfer: 10
                                 fillColor: SageState.bgCard
                                 borderColor: SageState.primaryAccent
 
                                 Column {
                                     anchors.centerIn: parent
-                                    spacing: 2
+                                    spacing: 4
                                     Text {
                                         anchors.horizontalCenter: parent.horizontalCenter
                                         text: "CPU COMPUTE"
@@ -438,15 +516,15 @@ Variants {
                             }
 
                             SageFrame {
-                                Layout.fillWidth: true
-                                Layout.fillHeight: true
+                                width: 174
+                                height: 90
                                 chamfer: 10
                                 fillColor: SageState.bgCard
                                 borderColor: SageState.secondaryAccent
 
                                 Column {
                                     anchors.centerIn: parent
-                                    spacing: 2
+                                    spacing: 4
                                     Text {
                                         anchors.horizontalCenter: parent.horizontalCenter
                                         text: "MEMORY (" + SageState.ramText + ")"
@@ -467,18 +545,18 @@ Variants {
                             }
 
                             SageFrame {
-                                Layout.fillWidth: true
-                                Layout.fillHeight: true
+                                width: 174
+                                height: 90
                                 chamfer: 10
                                 fillColor: SageState.bgCard
                                 borderColor: SageState.emeraldOk
 
                                 Column {
                                     anchors.centerIn: parent
-                                    spacing: 2
+                                    spacing: 4
                                     Text {
                                         anchors.horizontalCenter: parent.horizontalCenter
-                                        text: "MAGICULE CELL (" + SageState.batStatus.toUpperCase() + ")"
+                                        text: "CELL (" + SageState.batStatus.toUpperCase() + ")"
                                         color: SageState.textMuted
                                         font.family: "JetBrainsMono Nerd Font"
                                         font.pixelSize: 10
@@ -496,27 +574,27 @@ Variants {
                             }
                         }
 
-                        // end-4 Style 2x2 Bento Quick Toggle Cards
-                        GridLayout {
-                            Layout.fillWidth: true
-                            height: 155
+                        // 2. end-4 Style 2x2 Bento Quick Toggle Cards
+                        Grid {
+                            width: 542
+                            height: 176
                             columns: 2
-                            rowSpacing: 10
-                            columnSpacing: 10
+                            spacing: 12
 
-                            // 1. Wi-Fi Card
                             SageFrame {
-                                Layout.fillWidth: true
-                                Layout.fillHeight: true
+                                width: 265
+                                height: 82
                                 chamfer: 10
                                 fillColor: SageState.wifiEnabled
                                            ? Qt.rgba(SageState.primaryAccent.r, SageState.primaryAccent.g, SageState.primaryAccent.b, 0.2)
                                            : SageState.bgCard
                                 borderColor: SageState.wifiEnabled ? SageState.primaryAccent : SageState.textMuted
 
-                                ColumnLayout {
-                                    anchors.fill: parent
-                                    anchors.margins: 12
+                                Column {
+                                    x: 16
+                                    y: 18
+                                    width: 233
+                                    spacing: 6
                                     Text {
                                         text: "◈ WIRELESS MATRIX (WI-FI)"
                                         color: SageState.textPrimary
@@ -525,7 +603,7 @@ Variants {
                                         font.bold: true
                                     }
                                     Text {
-                                        Layout.fillWidth: true
+                                        width: 233
                                         text: SageState.wifiEnabled ? ("ONLINE // " + SageState.wifiSsid) : "OFFLINE"
                                         color: SageState.wifiEnabled ? SageState.primaryAccent : SageState.textMuted
                                         font.family: "JetBrainsMono Nerd Font"
@@ -541,7 +619,7 @@ Variants {
                                     acceptedButtons: Qt.LeftButton | Qt.RightButton
                                     onClicked: function(mouse) {
                                         if (mouse.button === Qt.RightButton) {
-                                            SageState.openDashboardTab(3);
+                                            SageState.openDashboardTab(4);
                                         } else {
                                             SageState.runCmd([SageState.ctlScript, "wifi-toggle"]);
                                         }
@@ -549,19 +627,20 @@ Variants {
                                 }
                             }
 
-                            // 2. VPN Shield Card
                             SageFrame {
-                                Layout.fillWidth: true
-                                Layout.fillHeight: true
+                                width: 265
+                                height: 82
                                 chamfer: 10
                                 fillColor: SageState.vpnActive
                                            ? Qt.rgba(SageState.emeraldOk.r, SageState.emeraldOk.g, SageState.emeraldOk.b, 0.2)
                                            : SageState.bgCard
                                 borderColor: SageState.vpnActive ? SageState.emeraldOk : SageState.textMuted
 
-                                ColumnLayout {
-                                    anchors.fill: parent
-                                    anchors.margins: 12
+                                Column {
+                                    x: 16
+                                    y: 18
+                                    width: 233
+                                    spacing: 6
                                     Text {
                                         text: "◈ BARRIER TUNNEL (VPN)"
                                         color: SageState.textPrimary
@@ -570,7 +649,7 @@ Variants {
                                         font.bold: true
                                     }
                                     Text {
-                                        Layout.fillWidth: true
+                                        width: 233
                                         text: SageState.vpnActive ? ("ACTIVE // " + SageState.vpnName) : "CLICK TO CONFIGURE VPN"
                                         color: SageState.vpnActive ? SageState.emeraldOk : SageState.textMuted
                                         font.family: "JetBrainsMono Nerd Font"
@@ -583,23 +662,24 @@ Variants {
                                 MouseArea {
                                     anchors.fill: parent
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: SageState.openDashboardTab(3)
+                                    onClicked: SageState.openDashboardTab(4)
                                 }
                             }
 
-                            // 3. Bluetooth Card
                             SageFrame {
-                                Layout.fillWidth: true
-                                Layout.fillHeight: true
+                                width: 265
+                                height: 82
                                 chamfer: 10
                                 fillColor: SageState.btEnabled
                                            ? Qt.rgba(SageState.primaryAccent.r, SageState.primaryAccent.g, SageState.primaryAccent.b, 0.2)
                                            : SageState.bgCard
                                 borderColor: SageState.btEnabled ? SageState.primaryAccent : SageState.textMuted
 
-                                ColumnLayout {
-                                    anchors.fill: parent
-                                    anchors.margins: 12
+                                Column {
+                                    x: 16
+                                    y: 18
+                                    width: 233
+                                    spacing: 6
                                     Text {
                                         text: "◈ TELEPATHY LINK (BLUETOOTH)"
                                         color: SageState.textPrimary
@@ -608,7 +688,7 @@ Variants {
                                         font.bold: true
                                     }
                                     Text {
-                                        Layout.fillWidth: true
+                                        width: 233
                                         text: SageState.btEnabled ? ("ENABLED // " + SageState.btDevice) : "DISABLED"
                                         color: SageState.btEnabled ? SageState.primaryAccent : SageState.textMuted
                                         font.family: "JetBrainsMono Nerd Font"
@@ -625,19 +705,20 @@ Variants {
                                 }
                             }
 
-                            // 4. Magicule Border Flow Animation Card
                             SageFrame {
-                                Layout.fillWidth: true
-                                Layout.fillHeight: true
+                                width: 265
+                                height: 82
                                 chamfer: 10
                                 fillColor: SageState.borderFlow
                                            ? Qt.rgba(SageState.secondaryAccent.r, SageState.secondaryAccent.g, SageState.secondaryAccent.b, 0.22)
                                            : SageState.bgCard
                                 borderColor: SageState.borderFlow ? SageState.secondaryAccent : SageState.textMuted
 
-                                ColumnLayout {
-                                    anchors.fill: parent
-                                    anchors.margins: 12
+                                Column {
+                                    x: 16
+                                    y: 18
+                                    width: 233
+                                    spacing: 6
                                     Text {
                                         text: "◈ MAGICULE BORDER ROTATION"
                                         color: SageState.textPrimary
@@ -646,6 +727,7 @@ Variants {
                                         font.bold: true
                                     }
                                     Text {
+                                        width: 233
                                         text: SageState.borderFlow ? "ANIMATED AURA // ON" : "STATIC AURA // OFF (ECO)"
                                         color: SageState.borderFlow ? SageState.secondaryAccent : SageState.textMuted
                                         font.family: "JetBrainsMono Nerd Font"
@@ -666,35 +748,37 @@ Variants {
                             }
                         }
 
-                        // Audio & Luminance Sliders Card
+                        // 3. Audio, Luminance & Power Profile Card
                         SageFrame {
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
+                            width: 542
+                            height: 246
                             chamfer: 12
                             fillColor: SageState.bgCard
                             borderColor: SageState.primaryAccent
 
-                            ColumnLayout {
-                                anchors.fill: parent
-                                anchors.margins: 16
-                                spacing: 12
+                            Column {
+                                x: 20
+                                y: 18
+                                width: 502
+                                spacing: 16
 
-                                // Volume Slider
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 4
+                                Column {
+                                    width: 502
+                                    spacing: 6
 
-                                    RowLayout {
-                                        Layout.fillWidth: true
+                                    Item {
+                                        width: 502
+                                        height: 18
                                         Text {
+                                            anchors.left: parent.left
                                             text: SageState.muted ? "◈ ACOUSTIC OUTPUT [MUTED]" : "◈ ACOUSTIC OUTPUT (VOLUME)"
                                             color: SageState.muted ? SageState.crimsonAlert : SageState.textPrimary
                                             font.family: "JetBrainsMono Nerd Font"
                                             font.pixelSize: 11
                                             font.bold: true
                                         }
-                                        Item { Layout.fillWidth: true }
                                         Text {
+                                            anchors.right: parent.right
                                             text: SageState.volume + "%"
                                             color: SageState.primaryAccent
                                             font.family: "JetBrainsMono Nerd Font"
@@ -705,8 +789,8 @@ Variants {
 
                                     Rectangle {
                                         id: dashVolBar
-                                        Layout.fillWidth: true
-                                        height: 16
+                                        width: 502
+                                        height: 18
                                         radius: 4
                                         color: SageState.bgVoid
                                         border.width: 1
@@ -731,22 +815,23 @@ Variants {
                                     }
                                 }
 
-                                // Brightness Slider
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 4
+                                Column {
+                                    width: 502
+                                    spacing: 6
 
-                                    RowLayout {
-                                        Layout.fillWidth: true
+                                    Item {
+                                        width: 502
+                                        height: 18
                                         Text {
+                                            anchors.left: parent.left
                                             text: "◈ OPTICAL LUMINANCE (BRIGHTNESS)"
                                             color: SageState.textPrimary
                                             font.family: "JetBrainsMono Nerd Font"
                                             font.pixelSize: 11
                                             font.bold: true
                                         }
-                                        Item { Layout.fillWidth: true }
                                         Text {
+                                            anchors.right: parent.right
                                             text: SageState.brightness + "%"
                                             color: SageState.secondaryAccent
                                             font.family: "JetBrainsMono Nerd Font"
@@ -757,8 +842,8 @@ Variants {
 
                                     Rectangle {
                                         id: dashBrightBar
-                                        Layout.fillWidth: true
-                                        height: 16
+                                        width: 502
+                                        height: 18
                                         radius: 4
                                         color: SageState.bgVoid
                                         border.width: 1
@@ -783,10 +868,10 @@ Variants {
                                     }
                                 }
 
-                                // Power Profile Row
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 8
+                                Row {
+                                    width: 502
+                                    height: 36
+                                    spacing: 11
 
                                     Repeater {
                                         model: [
@@ -800,8 +885,8 @@ Variants {
                                             required property var modelData
                                             readonly property bool isAct: SageState.powerProfile === modelData.id
 
-                                            Layout.fillWidth: true
-                                            height: 30
+                                            width: 160
+                                            height: 36
                                             radius: 4
                                             color: isAct
                                                    ? Qt.rgba(SageState.secondaryAccent.r, SageState.secondaryAccent.g, SageState.secondaryAccent.b, 0.24)
@@ -837,30 +922,29 @@ Variants {
                 // ═══════════════════════════════════════════════════════════════
                 // TAB 1: CAELESTIA SPECIAL WORKSPACES MANAGER
                 // ═══════════════════════════════════════════════════════════════
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
+                Column {
+                    width: 1032
+                    height: 540
                     visible: SageState.activeTab === 1
                     spacing: 14
 
                     Text {
-                        text: "◈ CAELESTIA SPECIAL WORKSPACES // LIVE APPLICATION & KEYBIND EDITOR"
+                        text: "◈ CAELESTIA SPECIAL WORKSPACES // HIDDEN OVERLAY WORKSPACES & LIVE KEYBIND EDITOR"
                         color: SageState.secondaryAccent
                         font.family: "JetBrainsMono Nerd Font"
                         font.pixelSize: 12
                         font.bold: true
                     }
 
-                    // Existing Special Workspaces List
                     Flickable {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
+                        width: 1032
+                        height: 416
                         contentHeight: specListCol.implicitHeight
                         clip: true
 
-                        ColumnLayout {
+                        Column {
                             id: specListCol
-                            width: parent.width
+                            width: 1032
                             spacing: 10
 
                             Repeater {
@@ -870,20 +954,21 @@ Variants {
                                     id: wsEditorRow
                                     required property var modelData
 
-                                    Layout.fillWidth: true
+                                    width: 1032
                                     height: 68
                                     chamfer: 10
                                     fillColor: SageState.bgCard
                                     borderColor: modelData.running ? SageState.secondaryAccent : SageState.primaryAccent
 
-                                    RowLayout {
-                                        anchors.fill: parent
-                                        anchors.margins: 14
+                                    Row {
+                                        x: 16
+                                        y: 15
+                                        width: 1000
+                                        height: 38
                                         spacing: 12
 
-                                        // Short Badge
                                         Rectangle {
-                                            width: 56
+                                            width: 58
                                             height: 38
                                             radius: 5
                                             color: SageState.bgVoid
@@ -900,9 +985,9 @@ Variants {
                                             }
                                         }
 
-                                        // Label + Status
                                         Column {
-                                            Layout.preferredWidth: 130
+                                            width: 130
+                                            anchors.verticalCenter: parent.verticalCenter
                                             spacing: 2
                                             Text {
                                                 text: wsEditorRow.modelData.label
@@ -920,10 +1005,9 @@ Variants {
                                             }
                                         }
 
-                                        // Editable Keybind Input
                                         Rectangle {
-                                            Layout.preferredWidth: 185
-                                            height: 36
+                                            width: 185
+                                            height: 38
                                             radius: 4
                                             color: SageState.bgVoid
                                             border.width: 1
@@ -932,8 +1016,8 @@ Variants {
                                             TextField {
                                                 id: bindEditInput
                                                 anchors.fill: parent
-                                                anchors.leftMargin: 8
-                                                anchors.rightMargin: 8
+                                                anchors.leftMargin: 10
+                                                anchors.rightMargin: 10
                                                 verticalAlignment: TextInput.AlignVCenter
                                                 text: wsEditorRow.modelData.bind
                                                 color: SageState.secondaryAccent
@@ -944,10 +1028,9 @@ Variants {
                                             }
                                         }
 
-                                        // Editable Command Input
                                         Rectangle {
-                                            Layout.fillWidth: true
-                                            height: 36
+                                            width: 355
+                                            height: 38
                                             radius: 4
                                             color: SageState.bgVoid
                                             border.width: 1
@@ -956,8 +1039,8 @@ Variants {
                                             TextField {
                                                 id: cmdEditInput
                                                 anchors.fill: parent
-                                                anchors.leftMargin: 8
-                                                anchors.rightMargin: 8
+                                                anchors.leftMargin: 10
+                                                anchors.rightMargin: 10
                                                 verticalAlignment: TextInput.AlignVCenter
                                                 text: wsEditorRow.modelData.cmd
                                                 color: SageState.textPrimary
@@ -967,10 +1050,9 @@ Variants {
                                             }
                                         }
 
-                                        // [ OPEN / TOGGLE ] Button
                                         Rectangle {
-                                            width: 82
-                                            height: 36
+                                            width: 86
+                                            height: 38
                                             radius: 4
                                             color: Qt.rgba(SageState.primaryAccent.r, SageState.primaryAccent.g, SageState.primaryAccent.b, 0.2)
                                             border.width: 1
@@ -995,10 +1077,9 @@ Variants {
                                             }
                                         }
 
-                                        // [ SAVE ] Button
                                         Rectangle {
-                                            width: 72
-                                            height: 36
+                                            width: 76
+                                            height: 38
                                             radius: 4
                                             color: Qt.rgba(SageState.emeraldOk.r, SageState.emeraldOk.g, SageState.emeraldOk.b, 0.2)
                                             border.width: 1
@@ -1020,10 +1101,9 @@ Variants {
                                             }
                                         }
 
-                                        // [ DELETE ] Button
                                         Rectangle {
-                                            width: 40
-                                            height: 36
+                                            width: 38
+                                            height: 38
                                             radius: 4
                                             color: SageState.bgVoid
                                             border.width: 1
@@ -1052,18 +1132,22 @@ Variants {
 
                     // Create New Special Workspace Bar
                     SageFrame {
-                        Layout.fillWidth: true
-                        height: 76
+                        width: 1032
+                        height: 74
                         chamfer: 10
                         fillColor: SageState.bgCard
                         borderColor: SageState.secondaryAccent
 
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.margins: 14
+                        Row {
+                            x: 16
+                            y: 18
+                            width: 1000
+                            height: 38
                             spacing: 10
 
                             Text {
+                                width: 62
+                                anchors.verticalCenter: parent.verticalCenter
                                 text: "◈ NEW:"
                                 color: SageState.secondaryAccent
                                 font.family: "JetBrainsMono Nerd Font"
@@ -1072,8 +1156,8 @@ Variants {
                             }
 
                             Rectangle {
-                                Layout.preferredWidth: 130
-                                height: 36
+                                width: 150
+                                height: 38
                                 radius: 4
                                 color: SageState.bgVoid
                                 border.width: 1
@@ -1093,8 +1177,8 @@ Variants {
                             }
 
                             Rectangle {
-                                Layout.preferredWidth: 85
-                                height: 36
+                                width: 95
+                                height: 38
                                 radius: 4
                                 color: SageState.bgVoid
                                 border.width: 1
@@ -1114,8 +1198,8 @@ Variants {
                             }
 
                             Rectangle {
-                                Layout.preferredWidth: 165
-                                height: 36
+                                width: 175
+                                height: 38
                                 radius: 4
                                 color: SageState.bgVoid
                                 border.width: 1
@@ -1135,8 +1219,8 @@ Variants {
                             }
 
                             Rectangle {
-                                Layout.fillWidth: true
-                                height: 36
+                                width: 338
+                                height: 38
                                 radius: 4
                                 color: SageState.bgVoid
                                 border.width: 1
@@ -1156,8 +1240,8 @@ Variants {
                             }
 
                             Rectangle {
-                                width: 120
-                                height: 36
+                                width: 130
+                                height: 38
                                 radius: 4
                                 color: Qt.rgba(SageState.secondaryAccent.r, SageState.secondaryAccent.g, SageState.secondaryAccent.b, 0.25)
                                 border.width: 1
@@ -1192,47 +1276,53 @@ Variants {
                 }
 
                 // ═══════════════════════════════════════════════════════════════
-                // TAB 2: WALLPAPERS & ULTIMATE SKILL THEMES (end-4 Customizer)
+                // TAB 2: WALLPAPERS, THEMES & KEYBOARD SELECTOR LIST
                 // ═══════════════════════════════════════════════════════════════
-                RowLayout {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
+                Row {
+                    width: 1032
+                    height: 540
                     visible: SageState.activeTab === 2
                     spacing: 18
 
-                    // LEFT: Visual Wallpaper Grid
+                    // LEFT: Visual Wallpaper Grid (Static HD & Slow Animated GIFs for all themes!)
                     SageFrame {
-                        Layout.preferredWidth: 600
-                        Layout.fillHeight: true
+                        width: 580
+                        height: 540
                         chamfer: 12
                         fillColor: SageState.bgCard
                         borderColor: SageState.primaryAccent
 
-                        ColumnLayout {
-                            anchors.fill: parent
-                            anchors.margins: 16
+                        Column {
+                            x: 16
+                            y: 16
+                            width: 548
+                            height: 508
                             spacing: 10
 
-                            RowLayout {
-                                Layout.fillWidth: true
+                            Item {
+                                width: 548
+                                height: 24
+
                                 Text {
-                                    text: "◈ HOLOGRAPHIC WALLPAPER ENGINE (SWWW)"
+                                    anchors.left: parent.left
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: "◈ WALLPAPER STUDIO (STATIC HD & SLOW ANIMATED)"
                                     color: SageState.secondaryAccent
                                     font.family: "JetBrainsMono Nerd Font"
                                     font.pixelSize: 11
                                     font.bold: true
                                 }
-                                Item { Layout.fillWidth: true }
 
-                                // Transition Selector Pills
                                 Row {
+                                    anchors.right: parent.right
+                                    anchors.verticalCenter: parent.verticalCenter
                                     spacing: 4
                                     Repeater {
                                         model: ["wave", "outer", "grow", "wipe"]
                                         Rectangle {
                                             id: trPill
                                             required property string modelData
-                                            width: 52
+                                            width: 48
                                             height: 22
                                             radius: 3
                                             color: SageState.transitionType === modelData ? SageState.primaryAccent : SageState.bgVoid
@@ -1257,9 +1347,9 @@ Variants {
                             }
 
                             GridView {
-                                Layout.fillWidth: true
-                                Layout.fillHeight: true
-                                cellWidth: 278
+                                width: 548
+                                height: 472
+                                cellWidth: 274
                                 cellHeight: 152
                                 clip: true
                                 model: SageState.wallpapers
@@ -1267,10 +1357,11 @@ Variants {
                                 delegate: Item {
                                     id: wallDelegate
                                     required property var modelData
-                                    width: 278
+                                    width: 274
                                     height: 152
 
                                     readonly property bool isCurrent: SageState.currentWallpaper === modelData.path
+                                    readonly property bool isAnim: modelData.path.indexOf(".gif") !== -1
 
                                     Rectangle {
                                         anchors.fill: parent
@@ -1285,9 +1376,31 @@ Variants {
                                             anchors.fill: parent
                                             anchors.margins: 3
                                             source: "file://" + wallDelegate.modelData.path
-                                            sourceSize.width: 360
-                                            sourceSize.height: 202
+                                            sourceSize.width: 320
+                                            sourceSize.height: 180
                                             fillMode: Image.PreserveAspectCrop
+                                        }
+
+                                        // Top-Right Badge: ANIMATED vs HD STATIC
+                                        Rectangle {
+                                            anchors.top: parent.top
+                                            anchors.right: parent.right
+                                            anchors.margins: 8
+                                            width: wallDelegate.isAnim ? 68 : 44
+                                            height: 18
+                                            radius: 3
+                                            color: wallDelegate.isAnim ? SageState.secondaryAccent : "#cc060b14"
+                                            border.width: 1
+                                            border.color: wallDelegate.isAnim ? SageState.secondaryAccent : SageState.primaryAccent
+
+                                            Text {
+                                                anchors.centerIn: parent
+                                                text: wallDelegate.isAnim ? "ANIMATED" : "STATIC"
+                                                color: wallDelegate.isAnim ? "#050911" : SageState.primaryAccent
+                                                font.family: "JetBrainsMono Nerd Font"
+                                                font.pixelSize: 8
+                                                font.bold: true
+                                            }
                                         }
 
                                         Rectangle {
@@ -1296,22 +1409,27 @@ Variants {
                                                 right: parent.right
                                                 bottom: parent.bottom
                                             }
-                                            height: 28
-                                            color: "#cc060b14"
+                                            height: 26
+                                            color: "#d9060b14"
 
-                                            RowLayout {
+                                            Item {
                                                 anchors.fill: parent
                                                 anchors.leftMargin: 10
                                                 anchors.rightMargin: 10
                                                 Text {
+                                                    width: 185
+                                                    anchors.left: parent.left
+                                                    anchors.verticalCenter: parent.verticalCenter
                                                     text: wallDelegate.modelData.name.toUpperCase()
                                                     color: wallDelegate.isCurrent ? SageState.secondaryAccent : SageState.textPrimary
                                                     font.family: "JetBrainsMono Nerd Font"
-                                                    font.pixelSize: 10
+                                                    font.pixelSize: 9
                                                     font.bold: true
+                                                    elide: Text.ElideRight
                                                 }
-                                                Item { Layout.fillWidth: true }
                                                 Text {
+                                                    anchors.right: parent.right
+                                                    anchors.verticalCenter: parent.verticalCenter
                                                     text: wallDelegate.isCurrent ? "ACTIVE" : "APPLY ▸"
                                                     color: wallDelegate.isCurrent ? SageState.emeraldOk : SageState.primaryAccent
                                                     font.family: "JetBrainsMono Nerd Font"
@@ -1332,37 +1450,60 @@ Variants {
                         }
                     }
 
-                    // RIGHT: Ultimate Skill Themes + Opacity + Keyboard Layout
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
+                    // RIGHT: Ultimate Skill Themes + Keyboard Layout Selection List (Width: 434)
+                    Column {
+                        width: 434
+                        height: 540
                         spacing: 12
 
+                        // 1. Ultimate Skill Color Schemes Card (434 x 272)
                         SageFrame {
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
+                            width: 434
+                            height: 272
                             chamfer: 12
                             fillColor: SageState.bgCard
                             borderColor: SageState.secondaryAccent
 
-                            ColumnLayout {
-                                anchors.fill: parent
-                                anchors.margins: 16
-                                spacing: 10
+                            Column {
+                                x: 16
+                                y: 14
+                                width: 402
+                                spacing: 7
 
-                                Text {
-                                    text: "◈ ULTIMATE SKILL COLOR SCHEMES"
-                                    color: SageState.secondaryAccent
-                                    font.family: "JetBrainsMono Nerd Font"
-                                    font.pixelSize: 11
-                                    font.bold: true
+                                Item {
+                                    width: 402
+                                    height: 20
+                                    Text {
+                                        anchors.left: parent.left
+                                        text: "◈ ULTIMATE SKILL COLOR SCHEMES"
+                                        color: SageState.secondaryAccent
+                                        font.family: "JetBrainsMono Nerd Font"
+                                        font.pixelSize: 11
+                                        font.bold: true
+                                    }
+                                    Text {
+                                        anchors.right: parent.right
+                                        text: SageState.holographicOpacity ? "[BLUR: ON]" : "[BLUR: OFF]"
+                                        color: SageState.primaryAccent
+                                        font.family: "JetBrainsMono Nerd Font"
+                                        font.pixelSize: 9
+                                        font.bold: true
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                SageState.holographicOpacity = !SageState.holographicOpacity;
+                                                SageState.runCmd([SageState.ctlScript, "set-opacity", SageState.holographicOpacity ? "holographic" : "solid"]);
+                                            }
+                                        }
+                                    }
                                 }
 
                                 Repeater {
                                     model: [
-                                        { id: "great_sage", title: "GREAT SAGE // RAPHAEL GOLD", desc: "Cyan Magicule + Golden Seal Accents", c1: "#00e5ff", c2: "#ffd54f" },
-                                        { id: "magicule", title: "RIMURU // PURE MAGICULE ICE", desc: "Luminous Cyan + Glacial Ice Blue", c1: "#00e5ff", c2: "#84ffff" },
-                                        { id: "beelzebub", title: "BEELZEBUB // GLUTTONY ABYSS", desc: "Void Violet + Cyan Aura Borders", c1: "#b388ff", c2: "#00e5ff" },
+                                        { id: "great_sage", title: "GREAT SAGE // RAPHAEL GOLD", desc: "Cyan Magicule + Golden Seal", c1: "#00e5ff", c2: "#ffd54f" },
+                                        { id: "magicule", title: "RIMURU // PURE MAGICULE ICE", desc: "Luminous Cyan + Glacial Ice", c1: "#00e5ff", c2: "#84ffff" },
+                                        { id: "beelzebub", title: "BEELZEBUB // GLUTTONY ABYSS", desc: "Devouring Vortex Violet + Cyan", c1: "#b388ff", c2: "#00e5ff" },
                                         { id: "hellflare", title: "BENIMARU // CRIMSON HELLFLARE", desc: "Demon Lord Crimson + Gold Flame", c1: "#ff5252", c2: "#ffd54f" }
                                     ]
 
@@ -1371,34 +1512,38 @@ Variants {
                                         required property var modelData
                                         readonly property bool active: SageState.themeName === modelData.id
 
-                                        Layout.fillWidth: true
-                                        height: 58
-                                        radius: 6
+                                        width: 402
+                                        height: 50
+                                        radius: 5
                                         color: active
                                                ? Qt.rgba(SageState.primaryAccent.r, SageState.primaryAccent.g, SageState.primaryAccent.b, 0.22)
                                                : SageState.bgVoid
                                         border.width: active ? 2 : 1
                                         border.color: active ? SageState.secondaryAccent : SageState.primaryAccent
 
-                                        RowLayout {
-                                            anchors.fill: parent
-                                            anchors.margins: 12
+                                        Row {
+                                            x: 12
+                                            y: 8
+                                            width: 378
+                                            height: 34
                                             spacing: 12
 
                                             Row {
-                                                spacing: 4
-                                                Rectangle { width: 16; height: 28; radius: 3; color: themeCard.modelData.c1 }
-                                                Rectangle { width: 16; height: 28; radius: 3; color: themeCard.modelData.c2 }
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                spacing: 3
+                                                Rectangle { width: 12; height: 26; radius: 2; color: themeCard.modelData.c1 }
+                                                Rectangle { width: 12; height: 26; radius: 2; color: themeCard.modelData.c2 }
                                             }
 
-                                            ColumnLayout {
-                                                Layout.fillWidth: true
-                                                spacing: 2
+                                            Column {
+                                                width: 260
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                spacing: 1
                                                 Text {
                                                     text: themeCard.modelData.title
                                                     color: SageState.textPrimary
                                                     font.family: "JetBrainsMono Nerd Font"
-                                                    font.pixelSize: 11
+                                                    font.pixelSize: 10
                                                     font.bold: true
                                                 }
                                                 Text {
@@ -1410,10 +1555,13 @@ Variants {
                                             }
 
                                             Text {
-                                                text: themeCard.active ? "ACTIVE" : "ENGAGE"
+                                                width: 66
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                horizontalAlignment: Text.AlignRight
+                                                text: themeCard.active ? "ACTIVE" : "SELECT ▸"
                                                 color: themeCard.active ? SageState.secondaryAccent : SageState.primaryAccent
                                                 font.family: "JetBrainsMono Nerd Font"
-                                                font.pixelSize: 10
+                                                font.pixelSize: 9
                                                 font.bold: true
                                             }
                                         }
@@ -1428,83 +1576,106 @@ Variants {
                                         }
                                     }
                                 }
+                            }
+                        }
 
-                                // Window Opacity & Keyboard Layout Row
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 8
+                        // 2. Clean Selectable List of Keyboard Layouts (434 x 256)
+                        SageFrame {
+                            width: 434
+                            height: 256
+                            chamfer: 12
+                            fillColor: SageState.bgCard
+                            borderColor: SageState.primaryAccent
+
+                            Column {
+                                x: 16
+                                y: 14
+                                width: 402
+                                spacing: 6
+
+                                Text {
+                                    text: "◈ KEYBOARD LAYOUT SELECTION LIST"
+                                    color: SageState.secondaryAccent
+                                    font.family: "JetBrainsMono Nerd Font"
+                                    font.pixelSize: 11
+                                    font.bold: true
+                                }
+
+                                Repeater {
+                                    model: [
+                                        { code: "fr", name: "Français (AZERTY Standard)", tag: "FR" },
+                                        { code: "us", name: "English (US QWERTY Standard)", tag: "US" },
+                                        { code: "fr,us", name: "Français + English (Alt+Shift Switch)", tag: "FR/US" },
+                                        { code: "be", name: "Belge (AZERTY Belgique)", tag: "BE" },
+                                        { code: "ch", name: "Suisse Romand (QWERTZ Suisse)", tag: "CH" }
+                                    ]
 
                                     Rectangle {
-                                        Layout.fillWidth: true
-                                        height: 36
-                                        radius: 4
-                                        color: SageState.holographicOpacity
-                                               ? Qt.rgba(SageState.primaryAccent.r, SageState.primaryAccent.g, SageState.primaryAccent.b, 0.2)
-                                               : SageState.bgVoid
-                                        border.width: 1
-                                        border.color: SageState.primaryAccent
+                                        id: kbRowItem
+                                        required property var modelData
+                                        readonly property bool isSelected: SageState.kbLayout === modelData.code
 
-                                        Text {
-                                            anchors.centerIn: parent
-                                            text: SageState.holographicOpacity ? "GLASS BLUR: HOLOGRAPHIC" : "GLASS BLUR: OPAQUE"
-                                            color: SageState.primaryAccent
-                                            font.family: "JetBrainsMono Nerd Font"
-                                            font.pixelSize: 10
-                                            font.bold: true
+                                        width: 402
+                                        height: 36
+                                        radius: 5
+                                        color: isSelected
+                                               ? Qt.rgba(SageState.secondaryAccent.r, SageState.secondaryAccent.g, SageState.secondaryAccent.b, 0.24)
+                                               : SageState.bgVoid
+                                        border.width: isSelected ? 1.5 : 1
+                                        border.color: isSelected ? SageState.secondaryAccent : SageState.primaryAccent
+
+                                        Row {
+                                            x: 12
+                                            y: 6
+                                            width: 378
+                                            height: 24
+                                            spacing: 10
+
+                                            Rectangle {
+                                                width: 48
+                                                height: 22
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                radius: 3
+                                                color: kbRowItem.isSelected ? SageState.secondaryAccent : SageState.bgCard
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: kbRowItem.modelData.tag
+                                                    color: kbRowItem.isSelected ? "#050911" : SageState.secondaryAccent
+                                                    font.family: "JetBrainsMono Nerd Font"
+                                                    font.pixelSize: 9
+                                                    font.bold: true
+                                                }
+                                            }
+
+                                            Text {
+                                                width: 240
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                text: kbRowItem.modelData.name
+                                                color: SageState.textPrimary
+                                                font.family: "JetBrainsMono Nerd Font"
+                                                font.pixelSize: 10
+                                                font.bold: kbRowItem.isSelected
+                                                elide: Text.ElideRight
+                                            }
+
+                                            Text {
+                                                width: 70
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                horizontalAlignment: Text.AlignRight
+                                                text: kbRowItem.isSelected ? "● ACTIVE" : "CHOOSE ▸"
+                                                color: kbRowItem.isSelected ? SageState.emeraldOk : SageState.primaryAccent
+                                                font.family: "JetBrainsMono Nerd Font"
+                                                font.pixelSize: 9
+                                                font.bold: true
+                                            }
                                         }
 
                                         MouseArea {
                                             anchors.fill: parent
                                             cursorShape: Qt.PointingHandCursor
                                             onClicked: {
-                                                SageState.holographicOpacity = !SageState.holographicOpacity;
-                                                SageState.runCmd([SageState.ctlScript, "set-opacity", SageState.holographicOpacity ? "holographic" : "solid"]);
-                                            }
-                                        }
-                                    }
-                                }
-
-                                // Keyboard Layouts
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 6
-
-                                    Text {
-                                        text: "KEYBOARD:"
-                                        color: SageState.textMuted
-                                        font.family: "JetBrainsMono Nerd Font"
-                                        font.pixelSize: 10
-                                        font.bold: true
-                                    }
-
-                                    Repeater {
-                                        model: ["fr", "us", "fr,us", "be", "ch"]
-                                        Rectangle {
-                                            id: kbChoice
-                                            required property string modelData
-                                            Layout.fillWidth: true
-                                            height: 30
-                                            radius: 4
-                                            color: SageState.kbLayout === modelData ? SageState.secondaryAccent : SageState.bgVoid
-                                            border.width: 1
-                                            border.color: SageState.secondaryAccent
-
-                                            Text {
-                                                anchors.centerIn: parent
-                                                text: kbChoice.modelData.toUpperCase()
-                                                color: SageState.kbLayout === kbChoice.modelData ? "#050911" : SageState.secondaryAccent
-                                                font.family: "JetBrainsMono Nerd Font"
-                                                font.pixelSize: 10
-                                                font.bold: true
-                                            }
-
-                                            MouseArea {
-                                                anchors.fill: parent
-                                                cursorShape: Qt.PointingHandCursor
-                                                onClicked: {
-                                                    SageState.kbLayout = kbChoice.modelData;
-                                                    SageState.runCmd([SageState.ctlScript, "set-kb", kbChoice.modelData]);
-                                                }
+                                                SageState.kbLayout = kbRowItem.modelData.code;
+                                                SageState.runCmd([SageState.ctlScript, "set-kb", kbRowItem.modelData.code]);
                                             }
                                         }
                                     }
@@ -1515,40 +1686,784 @@ Variants {
                 }
 
                 // ═══════════════════════════════════════════════════════════════
-                // TAB 3: NETWORK & VPN MATRIX
+                // TAB 3: GRAPHICAL DISPLAY & MULTI-MONITOR MANAGER (580 + 16 + 436)
                 // ═══════════════════════════════════════════════════════════════
-                RowLayout {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
+                Row {
+                    width: 1032
+                    height: 540
                     visible: SageState.activeTab === 3
+                    spacing: 16
+
+                    // LEFT PANEL: Interactive 2D Spatial Projection Canvas + Layout Presets
+                    SageFrame {
+                        width: 580
+                        height: 540
+                        chamfer: 12
+                        fillColor: SageState.bgCard
+                        borderColor: SageState.primaryAccent
+                        innerBorder: true
+
+                        Column {
+                            x: 18
+                            y: 16
+                            width: 544
+                            spacing: 10
+
+                            // Header
+                            Item {
+                                width: 544
+                                height: 28
+
+                                Text {
+                                    anchors.left: parent.left
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: "◈ SPATIAL DISPLAY PROJECTION (DRAG TO ARRANGE)"
+                                    color: SageState.secondaryAccent
+                                    font.family: "JetBrainsMono Nerd Font"
+                                    font.pixelSize: 11
+                                    font.bold: true
+                                }
+
+                                Row {
+                                    anchors.right: parent.right
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    spacing: 8
+
+                                    Rectangle {
+                                        width: 108
+                                        height: 26
+                                        radius: 4
+                                        color: SageState.bgVoid
+                                        border.width: 1
+                                        border.color: SageState.secondaryAccent
+
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: "NWG-DISPLAYS"
+                                            color: SageState.secondaryAccent
+                                            font.family: "JetBrainsMono Nerd Font"
+                                            font.pixelSize: 9
+                                            font.bold: true
+                                        }
+
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: SageState.launchApp("nwg-displays")
+                                        }
+                                    }
+
+                                    Rectangle {
+                                        width: 110
+                                        height: 26
+                                        radius: 4
+                                        color: SageState.bgVoid
+                                        border.width: 1
+                                        border.color: SageState.primaryAccent
+
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: "SCAN DISPLAYS"
+                                            color: SageState.primaryAccent
+                                            font.family: "JetBrainsMono Nerd Font"
+                                            font.pixelSize: 9
+                                            font.bold: true
+                                        }
+
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: SageState.loadMonitors()
+                                        }
+                                    }
+                                }
+                            }
+
+                            // 2D Interactive Blueprint Canvas (544 x 300)
+                            Rectangle {
+                                id: displayCanvas
+                                width: 544
+                                height: 300
+                                radius: 6
+                                color: "#050912"
+                                border.width: 1.5
+                                border.color: Qt.rgba(SageState.primaryAccent.r, SageState.primaryAccent.g, SageState.primaryAccent.b, 0.45)
+                                clip: true
+
+                                // Blueprint Grid & Origin Axes
+                                Canvas {
+                                    anchors.fill: parent
+                                    onPaint: {
+                                        var ctx = getContext("2d");
+                                        ctx.reset();
+                                        ctx.strokeStyle = "rgba(0, 229, 255, 0.08)";
+                                        ctx.lineWidth = 1;
+                                        for (var gx = 0; gx < width; gx += 24) {
+                                            ctx.beginPath();
+                                            ctx.moveTo(gx, 0);
+                                            ctx.lineTo(gx, height);
+                                            ctx.stroke();
+                                        }
+                                        for (var gy = 0; gy < height; gy += 24) {
+                                            ctx.beginPath();
+                                            ctx.moveTo(0, gy);
+                                            ctx.lineTo(width, gy);
+                                            ctx.stroke();
+                                        }
+                                        // Origin Crosshair at (185, 110)
+                                        ctx.strokeStyle = "rgba(255, 213, 79, 0.22)";
+                                        ctx.beginPath();
+                                        ctx.moveTo(185, 0);
+                                        ctx.lineTo(185, height);
+                                        ctx.moveTo(0, 110);
+                                        ctx.lineTo(width, 110);
+                                        ctx.stroke();
+                                    }
+                                }
+
+                                Text {
+                                    x: 10
+                                    y: 8
+                                    text: "ORIGIN (0,0) // DETECTED DISPLAYS: " + SageState.monitorList.length
+                                    color: SageState.textMuted
+                                    font.family: "JetBrainsMono Nerd Font"
+                                    font.pixelSize: 9
+                                    font.bold: true
+                                }
+
+                                Text {
+                                    anchors.bottom: parent.bottom
+                                    anchors.bottomMargin: 8
+                                    anchors.left: parent.left
+                                    anchors.leftMargin: 10
+                                    text: "TIP: Click to select a screen, drag to move it, or use a preset below."
+                                    color: SageState.textMuted
+                                    font.family: "JetBrainsMono Nerd Font"
+                                    font.pixelSize: 9
+                                }
+
+                                Repeater {
+                                    model: SageState.monitorList
+
+                                    SageFrame {
+                                        id: monBox
+                                        required property var modelData
+                                        required property int index
+                                        readonly property bool isSel: index === SageState.selectedMonitorIndex
+                                        readonly property real effW: Math.max(640, (modelData.width || 1920) / Math.max(0.5, modelData.scale || 1.0))
+                                        readonly property real effH: Math.max(480, (modelData.height || 1080) / Math.max(0.5, modelData.scale || 1.0))
+
+                                        width: Math.round(effW * 0.068)
+                                        height: Math.round(effH * 0.068)
+                                        x: Math.max(8, Math.min(displayCanvas.width - width - 8, Math.round(185 + (modelData.x || 0) * 0.068)))
+                                        y: Math.max(24, Math.min(displayCanvas.height - height - 24, Math.round(110 + (modelData.y || 0) * 0.068)))
+
+                                        chamfer: 8
+                                        fillColor: isSel
+                                                   ? Qt.rgba(SageState.primaryAccent.r, SageState.primaryAccent.g, SageState.primaryAccent.b, 0.28)
+                                                   : "#d80c1526"
+                                        borderColor: modelData.disabled
+                                                     ? SageState.crimsonAlert
+                                                     : (isSel ? SageState.secondaryAccent : SageState.primaryAccent)
+                                        borderWidth: isSel ? 2.0 : 1.5
+                                        innerBorder: isSel
+
+                                        Column {
+                                            anchors.centerIn: parent
+                                            spacing: 2
+
+                                            Text {
+                                                anchors.horizontalCenter: parent.horizontalCenter
+                                                text: "◈ " + monBox.modelData.name
+                                                color: monBox.isSel ? SageState.secondaryAccent : SageState.textPrimary
+                                                font.family: "JetBrainsMono Nerd Font"
+                                                font.pixelSize: 10
+                                                font.bold: true
+                                            }
+
+                                            Text {
+                                                anchors.horizontalCenter: parent.horizontalCenter
+                                                text: monBox.modelData.width + "×" + monBox.modelData.height + " @ " + Math.round(monBox.modelData.refreshRate) + "Hz"
+                                                color: SageState.primaryAccent
+                                                font.family: "JetBrainsMono Nerd Font"
+                                                font.pixelSize: 8
+                                                font.bold: true
+                                            }
+
+                                            Text {
+                                                anchors.horizontalCenter: parent.horizontalCenter
+                                                text: monBox.modelData.disabled
+                                                      ? "[DISABLED]"
+                                                      : (monBox.modelData.mirrorOf !== "none"
+                                                         ? ("MIRROR: " + monBox.modelData.mirrorOf)
+                                                         : ("POS: " + monBox.modelData.x + "," + monBox.modelData.y + (monBox.modelData.inches > 0 ? (" • " + monBox.modelData.inches + "\"") : "")))
+                                                color: SageState.textMuted
+                                                font.family: "JetBrainsMono Nerd Font"
+                                                font.pixelSize: 8
+                                                font.bold: true
+                                            }
+                                        }
+
+                                        MouseArea {
+                                            id: monDragArea
+                                            anchors.fill: parent
+                                            cursorShape: Qt.SizeAllCursor
+                                            drag.target: monBox
+                                            drag.axis: Drag.XAndYAxis
+                                            drag.minimumX: 8
+                                            drag.maximumX: displayCanvas.width - monBox.width - 8
+                                            drag.minimumY: 24
+                                            drag.maximumY: displayCanvas.height - monBox.height - 24
+
+                                            property real startBoxX: 0
+                                            property real startBoxY: 0
+
+                                            onPressed: {
+                                                SageState.selectedMonitorIndex = monBox.index;
+                                                startBoxX = monBox.x;
+                                                startBoxY = monBox.y;
+                                            }
+
+                                            onReleased: {
+                                                const movedDist = Math.hypot(monBox.x - startBoxX, monBox.y - startBoxY);
+                                                if (movedDist > 6) {
+                                                    let rawX = Math.round(((monBox.x - 185) / 0.068) / 20) * 20;
+                                                    let rawY = Math.round(((monBox.y - 110) / 0.068) / 20) * 20;
+                                                    if (Math.abs(rawX) <= 80) rawX = 0;
+                                                    if (Math.abs(rawY) <= 80) rawY = 0;
+                                                    if (SageState.monitorList.length > 0 && monBox.index > 0) {
+                                                        const pW = Math.round((SageState.monitorList[0].width || 1920) / (SageState.monitorList[0].scale || 1.0));
+                                                        const pH = Math.round((SageState.monitorList[0].height || 1080) / (SageState.monitorList[0].scale || 1.0));
+                                                        if (Math.abs(rawX - pW) <= 140) rawX = pW;
+                                                        if (Math.abs(rawX + pW) <= 140) rawX = -pW;
+                                                        if (Math.abs(rawY - pH) <= 140) rawY = pH;
+                                                        if (Math.abs(rawY + pH) <= 140) rawY = -pH;
+                                                    }
+                                                    if (rawX !== monBox.modelData.x || rawY !== monBox.modelData.y) {
+                                                        dashWindow.updateMonitorPos(monBox.index, rawX, rawY);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Quick Multi-Monitor Layout Presets
+                            Text {
+                                text: "◈ MULTI-SCREEN AUTOMATIC ARRANGEMENT PRESETS"
+                                color: SageState.secondaryAccent
+                                font.family: "JetBrainsMono Nerd Font"
+                                font.pixelSize: 10
+                                font.bold: true
+                            }
+
+                            Grid {
+                                width: 544
+                                height: 84
+                                columns: 3
+                                spacing: 8
+
+                                Repeater {
+                                    model: [
+                                        { id: "extend-right", label: "EXTEND RIGHT ▸", sub: "Primary + Right" },
+                                        { id: "extend-left",  label: "◂ EXTEND LEFT",  sub: "Left + Primary" },
+                                        { id: "extend-above", label: "▲ EXTEND ABOVE", sub: "Top + Bottom" },
+                                        { id: "mirror",       label: "◈ MIRROR SCREEN", sub: "Clone Primary" },
+                                        { id: "laptop-only",  label: "PRIMARY ONLY",   sub: "Disable External" },
+                                        { id: "external-only",label: "EXTERNAL ONLY",  sub: "Disable Laptop" }
+                                    ]
+
+                                    SageFrame {
+                                        id: presetBtn
+                                        required property var modelData
+                                        width: 176
+                                        height: 38
+                                        chamfer: 6
+                                        fillColor: presetMouse.containsMouse ? SageState.bgCardHover : SageState.bgVoid
+                                        borderColor: presetMouse.containsMouse ? SageState.secondaryAccent : SageState.primaryAccent
+
+                                        Column {
+                                            anchors.centerIn: parent
+                                            spacing: 1
+                                            Text {
+                                                anchors.horizontalCenter: parent.horizontalCenter
+                                                text: presetBtn.modelData.label
+                                                color: SageState.textPrimary
+                                                font.family: "JetBrainsMono Nerd Font"
+                                                font.pixelSize: 10
+                                                font.bold: true
+                                            }
+                                            Text {
+                                                anchors.horizontalCenter: parent.horizontalCenter
+                                                text: presetBtn.modelData.sub
+                                                color: SageState.textMuted
+                                                font.family: "JetBrainsMono Nerd Font"
+                                                font.pixelSize: 8
+                                            }
+                                        }
+
+                                        MouseArea {
+                                            id: presetMouse
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: SageState.applyMonitorPreset(presetBtn.modelData.id)
+                                        }
+                                    }
+                                }
+                            }
+
+                            Text {
+                                width: 544
+                                text: "◈ AUTO-PLUG ENABLED: Any external HDMI/DP screen connected is automatically sized to its native EDID resolution & refresh rate."
+                                color: SageState.emeraldOk
+                                font.family: "JetBrainsMono Nerd Font"
+                                font.pixelSize: 9
+                                font.bold: true
+                                elide: Text.ElideRight
+                            }
+                        }
+                    }
+
+                    // RIGHT PANEL: Selected Monitor Inspector & Live Parameters (436 x 540)
+                    SageFrame {
+                        width: 436
+                        height: 540
+                        chamfer: 12
+                        fillColor: SageState.bgCard
+                        borderColor: SageState.secondaryAccent
+                        innerBorder: true
+
+                        Column {
+                            x: 18
+                            y: 16
+                            width: 400
+                            spacing: 10
+
+                            // Selected Display Title & Hardware Info
+                            Column {
+                                width: 400
+                                spacing: 3
+
+                                Text {
+                                    text: "◈ DISPLAY INSPECTOR // " + dashWindow.currentMonitor.name
+                                    color: SageState.secondaryAccent
+                                    font.family: "JetBrainsMono Nerd Font"
+                                    font.pixelSize: 12
+                                    font.bold: true
+                                }
+
+                                Text {
+                                    width: 400
+                                    text: dashWindow.currentMonitor.desc + (dashWindow.currentMonitor.inches > 0
+                                          ? ("  •  " + dashWindow.currentMonitor.inches + "\" (" + dashWindow.currentMonitor.physW + "×" + dashWindow.currentMonitor.physH + "mm)")
+                                          : "")
+                                    color: SageState.textMuted
+                                    font.family: "JetBrainsMono Nerd Font"
+                                    font.pixelSize: 9
+                                    font.bold: true
+                                    elide: Text.ElideRight
+                                }
+                            }
+
+                            // Selector Strip if multiple monitors exist
+                            Row {
+                                width: 400
+                                height: 28
+                                spacing: 8
+
+                                Repeater {
+                                    model: SageState.monitorList
+
+                                    Rectangle {
+                                        id: monTabPill
+                                        required property var modelData
+                                        required property int index
+                                        readonly property bool isCur: index === SageState.selectedMonitorIndex
+                                        width: Math.floor((400 - (Math.max(1, SageState.monitorList.length) - 1) * 8) / Math.max(1, SageState.monitorList.length))
+                                        height: 28
+                                        radius: 4
+                                        color: isCur
+                                               ? Qt.rgba(SageState.secondaryAccent.r, SageState.secondaryAccent.g, SageState.secondaryAccent.b, 0.22)
+                                               : SageState.bgVoid
+                                        border.width: 1
+                                        border.color: isCur ? SageState.secondaryAccent : SageState.primaryAccent
+
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: "◈ " + monTabPill.modelData.name + " (" + monTabPill.modelData.width + "×" + monTabPill.modelData.height + ")"
+                                            color: monTabPill.isCur ? SageState.secondaryAccent : SageState.textPrimary
+                                            font.family: "JetBrainsMono Nerd Font"
+                                            font.pixelSize: 10
+                                            font.bold: true
+                                        }
+
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: SageState.selectedMonitorIndex = monTabPill.index
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Enable/Disable & Mirror Mode Toggles
+                            Row {
+                                width: 400
+                                height: 34
+                                spacing: 10
+
+                                Rectangle {
+                                    width: 195
+                                    height: 34
+                                    radius: 4
+                                    color: !dashWindow.currentMonitor.disabled
+                                           ? Qt.rgba(SageState.emeraldOk.r, SageState.emeraldOk.g, SageState.emeraldOk.b, 0.18)
+                                           : Qt.rgba(SageState.crimsonAlert.r, SageState.crimsonAlert.g, SageState.crimsonAlert.b, 0.18)
+                                    border.width: 1
+                                    border.color: !dashWindow.currentMonitor.disabled ? SageState.emeraldOk : SageState.crimsonAlert
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: !dashWindow.currentMonitor.disabled ? "STATUS: ENABLED [ON]" : "STATUS: DISABLED [OFF]"
+                                        color: !dashWindow.currentMonitor.disabled ? SageState.emeraldOk : SageState.crimsonAlert
+                                        font.family: "JetBrainsMono Nerd Font"
+                                        font.pixelSize: 10
+                                        font.bold: true
+                                    }
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: dashWindow.updateMonitorField(SageState.selectedMonitorIndex, "disabled", !dashWindow.currentMonitor.disabled)
+                                    }
+                                }
+
+                                Rectangle {
+                                    width: 195
+                                    height: 34
+                                    radius: 4
+                                    readonly property bool isMirrored: dashWindow.currentMonitor.mirrorOf !== "none"
+                                    color: isMirrored
+                                           ? Qt.rgba(SageState.secondaryAccent.r, SageState.secondaryAccent.g, SageState.secondaryAccent.b, 0.20)
+                                           : SageState.bgVoid
+                                    border.width: 1
+                                    border.color: isMirrored ? SageState.secondaryAccent : SageState.primaryAccent
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: parent.isMirrored ? ("MIRRORING: " + dashWindow.currentMonitor.mirrorOf) : "MODE: EXTENDED DESKTOP"
+                                        color: parent.isMirrored ? SageState.secondaryAccent : SageState.primaryAccent
+                                        font.family: "JetBrainsMono Nerd Font"
+                                        font.pixelSize: 10
+                                        font.bold: true
+                                    }
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            if (SageState.monitorList.length > 1) {
+                                                const primaryName = SageState.monitorList[0].name;
+                                                const nextMirror = (dashWindow.currentMonitor.mirrorOf === "none" && dashWindow.currentMonitor.name !== primaryName)
+                                                                   ? primaryName
+                                                                   : "none";
+                                                dashWindow.updateMonitorField(SageState.selectedMonitorIndex, "mirrorOf", nextMirror);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Direct Position Selector relative to Primary Monitor
+                            Text {
+                                text: "◈ POSITION RELATIVE TO PRIMARY (CURRENT: " + dashWindow.currentMonitor.x + ", " + dashWindow.currentMonitor.y + ")"
+                                color: SageState.secondaryAccent
+                                font.family: "JetBrainsMono Nerd Font"
+                                font.pixelSize: 10
+                                font.bold: true
+                            }
+
+                            Row {
+                                width: 400
+                                height: 28
+                                spacing: 6
+
+                                Repeater {
+                                    model: [
+                                        { id: "origin", label: "0,0 ORIGIN" },
+                                        { id: "right",  label: "RIGHT ▸" },
+                                        { id: "left",   label: "◂ LEFT" },
+                                        { id: "above",  label: "▲ ABOVE" },
+                                        { id: "below",  label: "▼ BELOW" }
+                                    ]
+
+                                    Rectangle {
+                                        id: posBtn
+                                        required property var modelData
+                                        width: 75.2
+                                        height: 28
+                                        radius: 4
+                                        color: posMouse.containsMouse ? SageState.bgCardHover : SageState.bgVoid
+                                        border.width: 1
+                                        border.color: posMouse.containsMouse ? SageState.secondaryAccent : SageState.primaryAccent
+
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: posBtn.modelData.label
+                                            color: posMouse.containsMouse ? SageState.secondaryAccent : SageState.textPrimary
+                                            font.family: "JetBrainsMono Nerd Font"
+                                            font.pixelSize: 9
+                                            font.bold: true
+                                        }
+
+                                        MouseArea {
+                                            id: posMouse
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                const idx = SageState.selectedMonitorIndex;
+                                                const pMon = SageState.monitorList.length > 0 ? SageState.monitorList[0] : dashWindow.currentMonitor;
+                                                const pW = Math.round((pMon.width || 1920) / Math.max(0.5, pMon.scale || 1.0));
+                                                const pH = Math.round((pMon.height || 1080) / Math.max(0.5, pMon.scale || 1.0));
+                                                const cW = Math.round((dashWindow.currentMonitor.width || 1920) / Math.max(0.5, dashWindow.currentMonitor.scale || 1.0));
+                                                const cH = Math.round((dashWindow.currentMonitor.height || 1080) / Math.max(0.5, dashWindow.currentMonitor.scale || 1.0));
+                                                if (posBtn.modelData.id === "origin") {
+                                                    dashWindow.updateMonitorPos(idx, 0, 0);
+                                                } else if (posBtn.modelData.id === "right") {
+                                                    dashWindow.updateMonitorPos(idx, pW, 0);
+                                                } else if (posBtn.modelData.id === "left") {
+                                                    dashWindow.updateMonitorPos(idx, -cW, 0);
+                                                } else if (posBtn.modelData.id === "above") {
+                                                    dashWindow.updateMonitorPos(idx, 0, -cH);
+                                                } else if (posBtn.modelData.id === "below") {
+                                                    dashWindow.updateMonitorPos(idx, 0, pH);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Scale Factor Selector
+                            Text {
+                                text: "◈ UI SCALING FACTOR (CURRENT: " + dashWindow.currentMonitor.scale + "x)"
+                                color: SageState.secondaryAccent
+                                font.family: "JetBrainsMono Nerd Font"
+                                font.pixelSize: 10
+                                font.bold: true
+                            }
+
+                            Row {
+                                width: 400
+                                height: 28
+                                spacing: 8
+
+                                Repeater {
+                                    model: [0.75, 1.0, 1.25, 1.5, 2.0]
+
+                                    Rectangle {
+                                        id: scaleBtn
+                                        required property var modelData
+                                        readonly property bool activeScale: Math.abs((dashWindow.currentMonitor.scale || 1.0) - modelData) < 0.05
+                                        width: 73.6
+                                        height: 28
+                                        radius: 4
+                                        color: activeScale
+                                               ? Qt.rgba(SageState.primaryAccent.r, SageState.primaryAccent.g, SageState.primaryAccent.b, 0.24)
+                                               : SageState.bgVoid
+                                        border.width: 1
+                                        border.color: activeScale ? SageState.secondaryAccent : SageState.primaryAccent
+
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: scaleBtn.modelData + "x"
+                                            color: scaleBtn.activeScale ? SageState.secondaryAccent : SageState.textPrimary
+                                            font.family: "JetBrainsMono Nerd Font"
+                                            font.pixelSize: 10
+                                            font.bold: true
+                                        }
+
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: dashWindow.updateMonitorField(SageState.selectedMonitorIndex, "scale", scaleBtn.modelData)
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Rotation / Orientation Selector
+                            Text {
+                                text: "◈ ORIENTATION / ROTATION"
+                                color: SageState.secondaryAccent
+                                font.family: "JetBrainsMono Nerd Font"
+                                font.pixelSize: 10
+                                font.bold: true
+                            }
+
+                            Row {
+                                width: 400
+                                height: 28
+                                spacing: 8
+
+                                Repeater {
+                                    model: [
+                                        { t: 0, label: "0° NORMAL" },
+                                        { t: 1, label: "90° RIGHT" },
+                                        { t: 2, label: "180° INVERT" },
+                                        { t: 3, label: "270° LEFT" }
+                                    ]
+
+                                    Rectangle {
+                                        id: rotBtn
+                                        required property var modelData
+                                        readonly property bool activeRot: (dashWindow.currentMonitor.transform || 0) === modelData.t
+                                        width: 94
+                                        height: 28
+                                        radius: 4
+                                        color: activeRot
+                                               ? Qt.rgba(SageState.primaryAccent.r, SageState.primaryAccent.g, SageState.primaryAccent.b, 0.24)
+                                               : SageState.bgVoid
+                                        border.width: 1
+                                        border.color: activeRot ? SageState.secondaryAccent : SageState.primaryAccent
+
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: rotBtn.modelData.label
+                                            color: rotBtn.activeRot ? SageState.secondaryAccent : SageState.textPrimary
+                                            font.family: "JetBrainsMono Nerd Font"
+                                            font.pixelSize: 9
+                                            font.bold: true
+                                        }
+
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: dashWindow.updateMonitorField(SageState.selectedMonitorIndex, "transform", rotBtn.modelData.t)
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Detected Resolutions & Refresh Rates (EDID)
+                            Text {
+                                text: "◈ DETECTED RESOLUTIONS & REFRESH RATES (CLICK TO APPLY)"
+                                color: SageState.secondaryAccent
+                                font.family: "JetBrainsMono Nerd Font"
+                                font.pixelSize: 10
+                                font.bold: true
+                            }
+
+                            Flickable {
+                                width: 400
+                                height: 142
+                                contentHeight: modeCol.implicitHeight
+                                clip: true
+
+                                Column {
+                                    id: modeCol
+                                    width: 400
+                                    spacing: 6
+
+                                    Repeater {
+                                        model: dashWindow.currentMonitor.modes
+
+                                        Rectangle {
+                                            id: modeRow
+                                            required property var modelData
+                                            readonly property string cleanMode: modelData.replace("Hz", "")
+                                            readonly property bool isCurrentMode: modelData.indexOf(dashWindow.currentMonitor.width + "x" + dashWindow.currentMonitor.height + "@" + Math.floor(dashWindow.currentMonitor.refreshRate)) === 0
+                                            width: 400
+                                            height: 34
+                                            radius: 4
+                                            color: isCurrentMode
+                                                   ? Qt.rgba(SageState.emeraldOk.r, SageState.emeraldOk.g, SageState.emeraldOk.b, 0.18)
+                                                   : (modeMouse.containsMouse ? SageState.bgCardHover : SageState.bgVoid)
+                                            border.width: 1
+                                            border.color: isCurrentMode ? SageState.emeraldOk : SageState.primaryAccent
+
+                                            Item {
+                                                anchors.fill: parent
+                                                anchors.leftMargin: 12
+                                                anchors.rightMargin: 12
+
+                                                Text {
+                                                    anchors.left: parent.left
+                                                    anchors.verticalCenter: parent.verticalCenter
+                                                    text: "◈ " + modeRow.modelData
+                                                    color: modeRow.isCurrentMode ? SageState.emeraldOk : SageState.textPrimary
+                                                    font.family: "JetBrainsMono Nerd Font"
+                                                    font.pixelSize: 11
+                                                    font.bold: true
+                                                }
+
+                                                Text {
+                                                    anchors.right: parent.right
+                                                    anchors.verticalCenter: parent.verticalCenter
+                                                    text: modeRow.isCurrentMode ? "[ACTIVE MODE]" : "APPLY ▸"
+                                                    color: modeRow.isCurrentMode ? SageState.emeraldOk : SageState.secondaryAccent
+                                                    font.family: "JetBrainsMono Nerd Font"
+                                                    font.pixelSize: 9
+                                                    font.bold: true
+                                                }
+                                            }
+
+                                            MouseArea {
+                                                id: modeMouse
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: dashWindow.updateMonitorField(SageState.selectedMonitorIndex, "mode", modeRow.cleanMode)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ═══════════════════════════════════════════════════════════════
+                // TAB 4: NETWORK & VPN MATRIX (507px + 18px + 507px = 1032px)
+                // ═══════════════════════════════════════════════════════════════
+                Row {
+                    width: 1032
+                    height: 540
+                    visible: SageState.activeTab === 4
                     spacing: 18
 
-                    // LEFT: Wi-Fi Access Points
                     SageFrame {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
+                        width: 507
+                        height: 540
                         chamfer: 12
                         fillColor: SageState.bgCard
                         borderColor: SageState.primaryAccent
 
-                        ColumnLayout {
-                            anchors.fill: parent
-                            anchors.margins: 16
-                            spacing: 10
+                        Column {
+                            x: 18
+                            y: 18
+                            width: 471
+                            spacing: 12
 
-                            RowLayout {
-                                Layout.fillWidth: true
+                            Item {
+                                width: 471
+                                height: 28
                                 Text {
+                                    anchors.left: parent.left
+                                    anchors.verticalCenter: parent.verticalCenter
                                     text: "◈ WIRELESS ACCESS POINTS (NMCLI)"
                                     color: SageState.secondaryAccent
                                     font.family: "JetBrainsMono Nerd Font"
                                     font.pixelSize: 11
                                     font.bold: true
                                 }
-                                Item { Layout.fillWidth: true }
 
                                 Rectangle {
-                                    width: 110
+                                    anchors.right: parent.right
+                                    width: 115
                                     height: 28
                                     radius: 4
                                     color: SageState.bgVoid
@@ -1573,15 +2488,15 @@ Variants {
                             }
 
                             Flickable {
-                                Layout.fillWidth: true
-                                Layout.fillHeight: true
+                                width: 471
+                                height: 460
                                 contentHeight: wifiListCol.implicitHeight
                                 clip: true
 
-                                ColumnLayout {
+                                Column {
                                     id: wifiListCol
-                                    width: parent.width
-                                    spacing: 6
+                                    width: 471
+                                    spacing: 8
 
                                     Repeater {
                                         model: SageState.wifiNetworks
@@ -1589,22 +2504,23 @@ Variants {
                                         Rectangle {
                                             id: wifiRow
                                             required property var modelData
-                                            Layout.fillWidth: true
+                                            width: 471
                                             height: 44
                                             radius: 5
-                                            color: modelData.inUse
+                                            color: modelData.active
                                                    ? Qt.rgba(SageState.emeraldOk.r, SageState.emeraldOk.g, SageState.emeraldOk.b, 0.18)
                                                    : SageState.bgVoid
                                             border.width: 1
-                                            border.color: modelData.inUse ? SageState.emeraldOk : SageState.primaryAccent
+                                            border.color: modelData.active ? SageState.emeraldOk : SageState.primaryAccent
 
-                                            RowLayout {
-                                                anchors.fill: parent
-                                                anchors.leftMargin: 12
-                                                anchors.rightMargin: 12
-                                                spacing: 10
+                                            Row {
+                                                x: 14
+                                                y: 12
+                                                width: 443
+                                                spacing: 12
 
                                                 Text {
+                                                    width: 46
                                                     text: wifiRow.modelData.signal + "%"
                                                     color: SageState.secondaryAccent
                                                     font.family: "JetBrainsMono Nerd Font"
@@ -1613,7 +2529,7 @@ Variants {
                                                 }
 
                                                 Text {
-                                                    Layout.fillWidth: true
+                                                    width: 290
                                                     text: wifiRow.modelData.ssid
                                                     color: SageState.textPrimary
                                                     font.family: "JetBrainsMono Nerd Font"
@@ -1623,8 +2539,10 @@ Variants {
                                                 }
 
                                                 Text {
-                                                    text: wifiRow.modelData.inUse ? "CONNECTED" : "CONNECT ▸"
-                                                    color: wifiRow.modelData.inUse ? SageState.emeraldOk : SageState.primaryAccent
+                                                    width: 82
+                                                    horizontalAlignment: Text.AlignRight
+                                                    text: wifiRow.modelData.active ? "CONNECTED" : "CONNECT ▸"
+                                                    color: wifiRow.modelData.active ? SageState.emeraldOk : SageState.primaryAccent
                                                     font.family: "JetBrainsMono Nerd Font"
                                                     font.pixelSize: 10
                                                     font.bold: true
@@ -1643,32 +2561,35 @@ Variants {
                         }
                     }
 
-                    // RIGHT: VPN Tunnels & Network Tools
                     SageFrame {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
+                        width: 507
+                        height: 540
                         chamfer: 12
                         fillColor: SageState.bgCard
                         borderColor: SageState.secondaryAccent
 
-                        ColumnLayout {
-                            anchors.fill: parent
-                            anchors.margins: 16
-                            spacing: 10
+                        Column {
+                            x: 18
+                            y: 18
+                            width: 471
+                            spacing: 12
 
-                            RowLayout {
-                                Layout.fillWidth: true
+                            Item {
+                                width: 471
+                                height: 28
                                 Text {
+                                    anchors.left: parent.left
+                                    anchors.verticalCenter: parent.verticalCenter
                                     text: "◈ BARRIER TUNNELS (WIREGUARD / VPN)"
                                     color: SageState.secondaryAccent
                                     font.family: "JetBrainsMono Nerd Font"
                                     font.pixelSize: 11
                                     font.bold: true
                                 }
-                                Item { Layout.fillWidth: true }
 
                                 Rectangle {
-                                    width: 140
+                                    anchors.right: parent.right
+                                    width: 145
                                     height: 28
                                     radius: 4
                                     color: SageState.bgVoid
@@ -1694,23 +2615,23 @@ Variants {
 
                             Text {
                                 visible: SageState.vpnList.length === 0
+                                width: 471
                                 text: "No VPN / WireGuard profiles configured in NetworkManager.\nClick 'NM CONNECTION GUI' above to import a WireGuard or OpenVPN profile."
                                 color: SageState.textMuted
                                 font.family: "JetBrainsMono Nerd Font"
                                 font.pixelSize: 11
                                 wrapMode: Text.WordWrap
-                                Layout.fillWidth: true
                             }
 
                             Flickable {
-                                Layout.fillWidth: true
-                                Layout.fillHeight: true
+                                width: 471
+                                height: 420
                                 contentHeight: vpnListCol.implicitHeight
                                 clip: true
 
-                                ColumnLayout {
+                                Column {
                                     id: vpnListCol
-                                    width: parent.width
+                                    width: 471
                                     spacing: 8
 
                                     Repeater {
@@ -1719,7 +2640,7 @@ Variants {
                                         Rectangle {
                                             id: vpnRow
                                             required property var modelData
-                                            Layout.fillWidth: true
+                                            width: 471
                                             height: 48
                                             radius: 5
                                             color: modelData.active
@@ -1728,13 +2649,14 @@ Variants {
                                             border.width: 1
                                             border.color: modelData.active ? SageState.emeraldOk : SageState.secondaryAccent
 
-                                            RowLayout {
+                                            Item {
                                                 anchors.fill: parent
                                                 anchors.leftMargin: 14
                                                 anchors.rightMargin: 14
 
                                                 Text {
-                                                    Layout.fillWidth: true
+                                                    anchors.left: parent.left
+                                                    anchors.verticalCenter: parent.verticalCenter
                                                     text: vpnRow.modelData.name
                                                     color: SageState.textPrimary
                                                     font.family: "JetBrainsMono Nerd Font"
@@ -1743,6 +2665,8 @@ Variants {
                                                 }
 
                                                 Text {
+                                                    anchors.right: parent.right
+                                                    anchors.verticalCenter: parent.verticalCenter
                                                     text: vpnRow.modelData.active ? "ACTIVE (DISCONNECT)" : "ACTIVATE TUNNEL ▸"
                                                     color: vpnRow.modelData.active ? SageState.emeraldOk : SageState.secondaryAccent
                                                     font.family: "JetBrainsMono Nerd Font"
@@ -1765,28 +2689,26 @@ Variants {
                 }
 
                 // ═══════════════════════════════════════════════════════════════
-                // TAB 4: KEYBINDS MATRIX (4-Column Great Sage Cheat Sheet)
+                // TAB 5: KEYBINDS MATRIX (4 Columns: 249 * 4 + 12 * 3 = 1032px)
                 // ═══════════════════════════════════════════════════════════════
-                GridLayout {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    visible: SageState.activeTab === 4
-                    columns: 4
-                    rowSpacing: 12
-                    columnSpacing: 12
+                Row {
+                    width: 1032
+                    height: 540
+                    visible: SageState.activeTab === 5
+                    spacing: 12
 
-                    // Column 1: Core & Menus
                     SageFrame {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
+                        width: 249
+                        height: 540
                         chamfer: 10
                         fillColor: SageState.bgCard
                         borderColor: SageState.primaryAccent
 
-                        ColumnLayout {
-                            anchors.fill: parent
-                            anchors.margins: 14
-                            spacing: 8
+                        Column {
+                            x: 14
+                            y: 16
+                            width: 221
+                            spacing: 10
 
                             Text {
                                 text: "◈ 01 // MENUS & APPS"
@@ -1798,30 +2720,32 @@ Variants {
 
                             Repeater {
                                 model: [
-                                    { k: "Super + Q", d: "Kitty Terminal" },
-                                    { k: "Super + R / Space", d: "Bottom App Launcher" },
+                                    { k: "Super (Seul)", d: "Menu des Apps" },
+                                    { k: "Super + M", d: "Central Dashboard" },
                                     { k: "Super + Shift + G", d: "Central Dashboard" },
+                                    { k: "Super + Return / T", d: "Kitty Terminal" },
                                     { k: "Super + H / F1", d: "Keybinds Matrix" },
-                                    { k: "Super + W", d: "Wallpaper Studio" },
-                                    { k: "Super + Shift + W", d: "Next Wallpaper" },
+                                    { k: "Super + W", d: "Next Wallpaper" },
+                                    { k: "Super + Shift + W", d: "Wallpaper Studio" },
                                     { k: "Super + E", d: "File Manager" },
-                                    { k: "Super + C", d: "Close Active Window" },
-                                    { k: "Super + M (Exit)", d: "Super + Shift + M" }
+                                    { k: "Super + Q", d: "Close Window" }
                                 ]
 
-                                RowLayout {
+                                Item {
                                     id: kbItem1
                                     required property var modelData
-                                    Layout.fillWidth: true
+                                    width: 221
+                                    height: 22
                                     Text {
+                                        anchors.left: parent.left
                                         text: kbItem1.modelData.k
                                         color: SageState.primaryAccent
                                         font.family: "JetBrainsMono Nerd Font"
                                         font.pixelSize: 10
                                         font.bold: true
                                     }
-                                    Item { Layout.fillWidth: true }
                                     Text {
+                                        anchors.right: parent.right
                                         text: kbItem1.modelData.d
                                         color: SageState.textPrimary
                                         font.family: "JetBrainsMono Nerd Font"
@@ -1829,22 +2753,21 @@ Variants {
                                     }
                                 }
                             }
-                            Item { Layout.fillHeight: true }
                         }
                     }
 
-                    // Column 2: Dynamic Special Workspaces
                     SageFrame {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
+                        width: 249
+                        height: 540
                         chamfer: 10
                         fillColor: SageState.bgCard
                         borderColor: SageState.secondaryAccent
 
-                        ColumnLayout {
-                            anchors.fill: parent
-                            anchors.margins: 14
-                            spacing: 8
+                        Column {
+                            x: 14
+                            y: 16
+                            width: 221
+                            spacing: 10
 
                             Text {
                                 text: "◈ 02 // SPECIAL WORKSPACES"
@@ -1857,19 +2780,21 @@ Variants {
                             Repeater {
                                 model: SageState.specialWorkspaces
 
-                                RowLayout {
+                                Item {
                                     id: kbSpecItem
                                     required property var modelData
-                                    Layout.fillWidth: true
+                                    width: 221
+                                    height: 22
                                     Text {
+                                        anchors.left: parent.left
                                         text: kbSpecItem.modelData.bind
                                         color: SageState.secondaryAccent
                                         font.family: "JetBrainsMono Nerd Font"
                                         font.pixelSize: 10
                                         font.bold: true
                                     }
-                                    Item { Layout.fillWidth: true }
                                     Text {
+                                        anchors.right: parent.right
                                         text: kbSpecItem.modelData.label
                                         color: SageState.textPrimary
                                         font.family: "JetBrainsMono Nerd Font"
@@ -1880,36 +2805,34 @@ Variants {
                             }
 
                             Rectangle {
-                                Layout.fillWidth: true
+                                width: 221
                                 height: 1
                                 color: Qt.rgba(SageState.primaryAccent.r, SageState.primaryAccent.g, SageState.primaryAccent.b, 0.3)
                             }
 
                             Text {
-                                text: "Tip: Click Tab 02 // SPECIAL WS above to customize apps, binds, or add new special workspaces."
+                                width: 221
+                                text: "Special workspaces live behind normal workspaces and automatically summon their assigned app."
                                 color: SageState.textMuted
                                 font.family: "JetBrainsMono Nerd Font"
                                 font.pixelSize: 9
                                 wrapMode: Text.WordWrap
-                                Layout.fillWidth: true
                             }
-
-                            Item { Layout.fillHeight: true }
                         }
                     }
 
-                    // Column 3: Window & Workspace Navigation
                     SageFrame {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
+                        width: 249
+                        height: 540
                         chamfer: 10
                         fillColor: SageState.bgCard
                         borderColor: SageState.primaryAccent
 
-                        ColumnLayout {
-                            anchors.fill: parent
-                            anchors.margins: 14
-                            spacing: 8
+                        Column {
+                            x: 14
+                            y: 16
+                            width: 221
+                            spacing: 10
 
                             Text {
                                 text: "◈ 03 // WINDOWS & TILING"
@@ -1921,29 +2844,31 @@ Variants {
 
                             Repeater {
                                 model: [
-                                    { k: "Super + 1..0", d: "Switch Workspace 1..10" },
-                                    { k: "Super + Shift + 1..0", d: "Move Window to WS" },
+                                    { k: "Super + Espace", d: "Toggle Floating" },
+                                    { k: "Super + 1..0", d: "Workspace 1..10" },
+                                    { k: "Super + Shift + 1..0", d: "Move to WS 1..10" },
                                     { k: "Super + Arrows", d: "Focus Direction" },
-                                    { k: "Super + V", d: "Toggle Floating" },
                                     { k: "Super + F", d: "Fullscreen Mode" },
                                     { k: "Super + P", d: "Pseudo Tiling" },
                                     { k: "Super + J", d: "Toggle Split" },
-                                    { k: "Super + S", d: "Scratchpad Toggle" }
+                                    { k: "Super + Shift + M", d: "Exit Hyprland" }
                                 ]
 
-                                RowLayout {
+                                Item {
                                     id: kbItem3
                                     required property var modelData
-                                    Layout.fillWidth: true
+                                    width: 221
+                                    height: 22
                                     Text {
+                                        anchors.left: parent.left
                                         text: kbItem3.modelData.k
                                         color: SageState.primaryAccent
                                         font.family: "JetBrainsMono Nerd Font"
                                         font.pixelSize: 10
                                         font.bold: true
                                     }
-                                    Item { Layout.fillWidth: true }
                                     Text {
+                                        anchors.right: parent.right
                                         text: kbItem3.modelData.d
                                         color: SageState.textPrimary
                                         font.family: "JetBrainsMono Nerd Font"
@@ -1951,22 +2876,21 @@ Variants {
                                     }
                                 }
                             }
-                            Item { Layout.fillHeight: true }
                         }
                     }
 
-                    // Column 4: Capture, Media & System
                     SageFrame {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
+                        width: 249
+                        height: 540
                         chamfer: 10
                         fillColor: SageState.bgCard
                         borderColor: SageState.primaryAccent
 
-                        ColumnLayout {
-                            anchors.fill: parent
-                            anchors.margins: 14
-                            spacing: 8
+                        Column {
+                            x: 14
+                            y: 16
+                            width: 221
+                            spacing: 10
 
                             Text {
                                 text: "◈ 04 // SYSTEM & CAPTURE"
@@ -1978,28 +2902,30 @@ Variants {
 
                             Repeater {
                                 model: [
-                                    { k: "Super + Shift + S", d: "Region Screenshot" },
-                                    { k: "Print", d: "Full Screenshot" },
+                                    { k: "Print", d: "Region Screenshot" },
+                                    { k: "Shift + Print", d: "Full Screenshot" },
                                     { k: "Super + L", d: "Lock Screen" },
-                                    { k: "Super + N", d: "Network & VPN Tab" },
-                                    { k: "XF86AudioRaise/Lower", d: "Volume +/- 5%" },
-                                    { k: "XF86AudioMute", d: "Mute Audio" },
-                                    { k: "XF86MonBrightness", d: "Brightness +/- 5%" }
+                                    { k: "Super + V", d: "Clipboard History" },
+                                    { k: "AudioRaise/Lower", d: "Volume +/- 5%" },
+                                    { k: "AudioMute", d: "Mute Audio" },
+                                    { k: "MonBrightness", d: "Brightness +/- 5%" }
                                 ]
 
-                                RowLayout {
+                                Item {
                                     id: kbItem4
                                     required property var modelData
-                                    Layout.fillWidth: true
+                                    width: 221
+                                    height: 22
                                     Text {
+                                        anchors.left: parent.left
                                         text: kbItem4.modelData.k
                                         color: SageState.primaryAccent
                                         font.family: "JetBrainsMono Nerd Font"
                                         font.pixelSize: 10
                                         font.bold: true
                                     }
-                                    Item { Layout.fillWidth: true }
                                     Text {
+                                        anchors.right: parent.right
                                         text: kbItem4.modelData.d
                                         color: SageState.textPrimary
                                         font.family: "JetBrainsMono Nerd Font"
@@ -2007,7 +2933,6 @@ Variants {
                                     }
                                 }
                             }
-                            Item { Layout.fillHeight: true }
                         }
                     }
                 }

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # ══════════════════════════════════════════════════════════════════════════════
 #  HYPRSLIME — Caelestia-Style Special Workspaces Manager (special-ws.sh)
+#  Supports Hyprland 0.57.0 Lua Dispatcher (`hl.dsp.*`) and Legacy `.conf`
 # ══════════════════════════════════════════════════════════════════════════════
 
 set -u
@@ -9,7 +10,6 @@ CONF_DIR="$HOME/.config/hypr/conf"
 JSON_FILE="$CONF_DIR/special_workspaces.json"
 LUA_FILE="$CONF_DIR/special.lua"
 CONF_FILE="$CONF_DIR/special.conf"
-SCRIPT_PATH="$HOME/.config/hypr/scripts/special-ws.sh"
 
 # Ensure HYPRLAND_INSTANCE_SIGNATURE is set so hyprctl always works
 if [[ -z "${HYPRLAND_INSTANCE_SIGNATURE:-}" && -d "/run/user/$(id -u)/hypr" ]]; then
@@ -84,18 +84,38 @@ try:
 except Exception:
     items = []
 
+def extract_special_id(ws_obj):
+    if not isinstance(ws_obj, dict):
+        return ""
+    wname = str(ws_obj.get("name", ""))
+    wtype = str(ws_obj.get("type", ""))
+    if wname.startswith("special:"):
+        return wname.split("special:", 1)[1]
+    if wtype == "special" and wname:
+        return wname
+    return ""
+
 running_ws = set()
+active_special = ""
 try:
     out = subprocess.check_output(["hyprctl", "clients", "-j"], stderr=subprocess.DEVNULL, text=True)
     for c in json.loads(out):
-        ws_name = c.get("workspace", {}).get("name", "")
-        if ws_name.startswith("special:"):
-            running_ws.add(ws_name.split("special:", 1)[1])
+        sid = extract_special_id(c.get("workspace", {}))
+        if sid:
+            running_ws.add(sid)
+    mon_out = subprocess.check_output(["hyprctl", "monitors", "-j"], stderr=subprocess.DEVNULL, text=True)
+    for m in json.loads(mon_out):
+        sid = extract_special_id(m.get("specialWorkspace", {}))
+        if sid:
+            active_special = sid
+            break
 except Exception:
     pass
 
 for item in items:
-    item["running"] = item.get("id") in running_ws
+    wid = item.get("id", "")
+    item["running"] = wid in running_ws
+    item["visible"] = (wid == active_special)
 
 print(json.dumps(items))
 EOF
@@ -104,40 +124,116 @@ EOF
     toggle)
         ws_id="${2:-}"
         [[ -z "$ws_id" ]] && exit 0
-        read -r cmd wclass < <(python3 - "$JSON_FILE" "$ws_id" << 'EOF'
-import json, sys
-with open(sys.argv[1], "r", encoding="utf-8") as f:
+        python3 - "$JSON_FILE" "$ws_id" << 'EOF'
+import json, re, subprocess, sys, time
+
+json_path, ws_id = sys.argv[1], sys.argv[2]
+
+cmd = ""
+wclass = ""
+with open(json_path, "r", encoding="utf-8") as f:
     for item in json.load(f):
-        if item.get("id") == sys.argv[2]:
-            print(f"{item.get('cmd', '')}\t{item.get('class', '')}")
+        if item.get("id") == ws_id:
+            cmd = item.get("cmd", "").strip()
+            wclass = item.get("class", "").strip()
+            break
+
+def extract_special_id(ws_obj):
+    if not isinstance(ws_obj, dict):
+        return ""
+    wname = str(ws_obj.get("name", ""))
+    wtype = str(ws_obj.get("type", ""))
+    if wname.startswith("special:"):
+        return wname.split("special:", 1)[1]
+    if wtype == "special" and wname:
+        return wname
+    return ""
+
+def get_clients():
+    try:
+        out = subprocess.check_output(["hyprctl", "clients", "-j"], stderr=subprocess.DEVNULL, text=True)
+        return json.loads(out)
+    except Exception:
+        return []
+
+def is_special_visible(target_id):
+    try:
+        out = subprocess.check_output(["hyprctl", "monitors", "-j"], stderr=subprocess.DEVNULL, text=True)
+        for m in json.loads(out):
+            if extract_special_id(m.get("specialWorkspace", {})) == target_id:
+                return True
+    except Exception:
+        pass
+    return False
+
+def toggle_special_ws(target_id):
+    # Try Hyprland 0.57.0 Lua dispatcher first, fallback to legacy dispatcher
+    res = subprocess.run(
+        ["hyprctl", "dispatch", f'hl.dsp.workspace.toggle_special("{target_id}")'],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+    )
+    if res.returncode != 0 or "error:" in res.stdout:
+        subprocess.run(
+            ["hyprctl", "dispatch", "togglespecialworkspace", target_id],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
+
+def move_window_to_special(addr, target_id):
+    if not addr:
+        return
+    res = subprocess.run(
+        ["hyprctl", "dispatch", f'hl.dsp.window.move({{ workspace = "special:{target_id}", window = "address:{addr}" }})'],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+    )
+    if res.returncode != 0 or "error:" in res.stdout:
+        subprocess.run(
+            ["hyprctl", "dispatch", "movetoworkspacesilent", f"special:{target_id},address:{addr}"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
+
+clients = get_clients()
+in_special = [c for c in clients if extract_special_id(c.get("workspace", {})) == ws_id]
+
+if in_special:
+    toggle_special_ws(ws_id)
+    sys.exit(0)
+
+# Check if a matching class window exists on another workspace
+matching = []
+if wclass:
+    for c in clients:
+        if re.search(wclass, c.get("class", "")):
+            matching.append(c)
+
+if matching:
+    for c in matching:
+        move_window_to_special(c.get("address", ""), ws_id)
+    if not is_special_visible(ws_id):
+        toggle_special_ws(ws_id)
+    sys.exit(0)
+
+# No window exists yet -> spawn the application in background and ensure special:<ws_id> opens
+if cmd:
+    known_addrs = {c.get("address") for c in clients}
+    subprocess.Popen(["bash", "-c", f"nohup {cmd} >/dev/null 2>&1 &"], start_new_session=True)
+
+    for _ in range(35):
+        time.sleep(0.12)
+        now_clients = get_clients()
+        in_spec_now = [c for c in now_clients if extract_special_id(c.get("workspace", {})) == ws_id]
+        if in_spec_now:
+            if not is_special_visible(ws_id):
+                toggle_special_ws(ws_id)
+            break
+        new_clients = [c for c in now_clients if c.get("address") not in known_addrs]
+        if new_clients:
+            for nc in new_clients:
+                if not wclass or re.search(wclass, nc.get("class", "")):
+                    move_window_to_special(nc.get("address", ""), ws_id)
+            if not is_special_visible(ws_id):
+                toggle_special_ws(ws_id)
             break
 EOF
-)
-        has_client=$(hyprctl clients -j 2>/dev/null | python3 -c "
-import json, re, sys
-ws_id = '$ws_id'
-wclass = '$wclass'
-try:
-    clients = json.load(sys.stdin)
-    found = False
-    for c in clients:
-        if c.get('workspace', {}).get('name') == 'special:' + ws_id:
-            found = True
-            break
-        if wclass and re.search(wclass, c.get('class', '')):
-            found = True
-            break
-    print('1' if found else '0')
-except Exception:
-    print('0')
-")
-        # Always toggle the special workspace immediately so the user sees it
-        hyprctl dispatch togglespecialworkspace "$ws_id" >/dev/null 2>&1 || true
-
-        # If no window is inside special:<ws_id>, spawn the app into it
-        if [[ "$has_client" == "0" && -n "$cmd" ]]; then
-            hyprctl dispatch exec "[workspace special:$ws_id] $cmd" >/dev/null 2>&1 || true
-        fi
         ;;
 
     update)

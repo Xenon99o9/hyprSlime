@@ -10,6 +10,12 @@ if [[ -r "$WALL_CACHE" ]]; then
     [[ -n "$cached_wall" && -f "$cached_wall" ]] && WALLPAPER="$cached_wall"
 fi
 
+if [[ -z "${HYPRLAND_INSTANCE_SIGNATURE:-}" && -d "/run/user/$(id -u)/hypr" ]]; then
+    sig=$(ls -t "/run/user/$(id -u)/hypr" 2>/dev/null | head -n 1 || true)
+    [[ -n "$sig" ]] && export HYPRLAND_INSTANCE_SIGNATURE="$sig"
+fi
+hyprctl reload >/dev/null 2>&1 || true
+
 # 1. Stop any legacy bars (waybar / old quickshell instances)
 pkill -x waybar 2>/dev/null || true
 pkill -x quickshell 2>/dev/null || true
