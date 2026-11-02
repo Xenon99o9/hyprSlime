@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# ══════════════════════════════════════════════════════════════════════════════
+#  HYPRSLIME — Great Sage HUD & Wallpaper Startup Script (startup-hud.sh)
+# ══════════════════════════════════════════════════════════════════════════════
+
+WALLPAPER="$HOME/.config/hypr/wallpapers/great-sage-void.png"
+
+# 1. Stop any legacy bars (waybar / old quickshell instances)
+pkill -x waybar 2>/dev/null || true
+pkill -x quickshell 2>/dev/null || true
+pkill -x qs 2>/dev/null || true
+
+# 2. Start Wallpaper Daemon (swww or awww) & Apply Great Sage Mindscape Wallpaper
+if command -v swww-daemon >/dev/null 2>&1; then
+    pgrep -x swww-daemon >/dev/null || swww-daemon --format xrgb &
+    sleep 0.5
+    [[ -f "$WALLPAPER" ]] && swww img "$WALLPAPER" --transition-type center --transition-fps 120 &
+elif command -v awww-daemon >/dev/null 2>&1; then
+    pgrep -x awww-daemon >/dev/null || awww-daemon --format xrgb &
+    sleep 0.5
+    [[ -f "$WALLPAPER" ]] && awww img "$WALLPAPER" --transition-type center --transition-fps 120 &
+fi
+
+# 3. Start Notification Daemon (SwayNC)
+if command -v swaync >/dev/null 2>&1; then
+    pgrep -x swaync >/dev/null || swaync &
+fi
+
+# 4. Start Great Sage Top Bar, Keybinds Sheet & Control Center (Quickshell)
+if command -v quickshell >/dev/null 2>&1; then
+    quickshell &
+elif command -v qs >/dev/null 2>&1; then
+    qs &
+fi
+
+# 5. Idle Daemon
+command -v hypridle >/dev/null 2>&1 && { pgrep -x hypridle >/dev/null || hypridle & }
+
+# 6. Great Sage Startup Report Notification
+sleep 1.2
+if command -v notify-send >/dev/null 2>&1; then
+    notify-send -a "Great Sage" "◈ Unique Skill [Great Sage]" "HUD initialized. Press Super+H for Keybinds or Super+Shift+G for Control Center."
+fi

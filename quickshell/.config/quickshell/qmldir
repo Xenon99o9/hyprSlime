@@ -1,0 +1,5 @@
+singleton SageState 1.0 SageState.qml
+TopBar 1.0 TopBar.qml
+KeybindsSheet 1.0 KeybindsSheet.qml
+ControlCenter 1.0 ControlCenter.qml
+

@@ -69,6 +69,15 @@ hyprSlime/
 │           └── scripts/
 │               └── great-sage-menu.sh        # Live customization menu (Super + Shift + G)
 │
+├── quickshell/                               # Stow package -> ~/.config/quickshell/
+│   └── .config/
+│       └── quickshell/
+│           ├── shell.qml                     # Quickshell entrypoint & IPC handler
+│           ├── SageState.qml                 # Real-time telemetry, Wi-Fi/VPN & theme state
+│           ├── TopBar.qml                    # 3-Island floating Great Sage HUD bar
+│           ├── ControlCenter.qml             # Full settings drawer (Theme, Wi-Fi, VPN, Audio, Power)
+│           └── KeybindsSheet.qml             # Interactive Keybinds Cheat Sheet overlay (Super + H)
+│
 ├── kitty/                                    # Stow package -> ~/.config/kitty/
 │   └── .config/
 │       └── kitty/
@@ -100,7 +109,7 @@ The installer automatically detects your GPU, lets you pick your keyboard layout
 ### Manual GNU Stow Deployment (Optional)
 If you prefer to deploy individual packages manually:
 ```bash
-stow --restow --target="$HOME" hypr kitty fish
+stow --restow --target="$HOME" hypr kitty fish quickshell
 ```
 
 ---
@@ -114,7 +123,8 @@ stow --restow --target="$HOME" hypr kitty fish
 | `Super + Return` / `Super + T` | Launch **Kitty** Terminal |
 | `Super + Q` | Close active window (`killactive`) |
 | `Super + R` / `Super + Space` | Open Application Launcher (`$menu`) |
-| `Super + Shift + G` | Open **◈ Great Sage Live Customization Menu** |
+| `Super + Shift + G` | Toggle **◈ Great Sage Control Center** (Theme, Wi-Fi, VPN, Audio, Power) |
+| `Super + H` / `Super + F1` | Toggle **◈ Great Sage Keybinds Cheat Sheet** |
 | `Super + E` | Open File Manager (`thunar` by default) |
 | `Super + B` | Open Web Browser (`brave` by default) |
 | `Super + V` | Open **Great Sage Memory** (Clipboard history via `cliphist`) |

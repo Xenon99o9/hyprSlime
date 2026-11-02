@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
 # ══════════════════════════════════════════════════════════════════════════════
 #  HYPRSLIME — Great Sage Live Customization Menu (great-sage-menu.sh)
-#  Allows instant switching of Skill Border Themes, Magicule Flow, and Keyboards
+#  Supports both Hyprland 0.57+ Lua (conf/*.lua) and legacy (conf/*.conf)
 # ══════════════════════════════════════════════════════════════════════════════
 
 set -euo pipefail
 
 CONF_DIR="$HOME/.config/hypr/conf"
-COLORS_FILE="$CONF_DIR/colors.conf"
-ANIM_FILE="$CONF_DIR/animations.conf"
-INPUT_FILE="$CONF_DIR/input.conf"
+COLORS_CONF="$CONF_DIR/colors.conf"
+COLORS_LUA="$CONF_DIR/colors.lua"
+ANIM_CONF="$CONF_DIR/animations.conf"
+ANIM_LUA="$CONF_DIR/animations.lua"
+INPUT_CONF="$CONF_DIR/input.conf"
+INPUT_LUA="$CONF_DIR/input.lua"
 
-# Pick available menu launcher (rofi, fuzzel, wofi)
 run_menu() {
     local prompt="$1"
     if command -v rofi >/dev/null 2>&1; then
@@ -51,24 +53,39 @@ case "$main_choice" in
 
         case "$theme_choice" in
             "1."*)
-                hyprctl keyword general:col.active_border "rgba(00e5ffff) rgba(2979ffff) rgba(ffd54fff) 45deg"
-                hyprctl keyword decoration:shadow:color "rgba(00e5ff55)"
-                sed -i 's/^\$active_border.*/$active_border    = $border_great_sage/' "$COLORS_FILE"
-                sed -i 's/^\$slime_glow.*/$slime_glow       = $glow_great_sage/' "$COLORS_FILE"
+                [[ -f "$COLORS_CONF" ]] && {
+                    sed -i 's/^\$active_border.*/$active_border    = $border_great_sage/' "$COLORS_CONF"
+                    sed -i 's/^\$slime_glow.*/$slime_glow       = $glow_great_sage/' "$COLORS_CONF"
+                }
+                [[ -f "$COLORS_LUA" ]] && {
+                    sed -i 's/^M\.active_border.*/M.active_border   = M.presets.great_sage.border/' "$COLORS_LUA"
+                    sed -i 's/^M\.slime_glow.*/M.slime_glow      = M.presets.great_sage.glow/' "$COLORS_LUA"
+                }
+                hyprctl reload >/dev/null 2>&1 || true
                 notify_sage "Unique Skill: Great Sage" "Border & Glow updated to Cyan / Azure / Gold."
                 ;;
             "2."*)
-                hyprctl keyword general:col.active_border "rgba(00e5ffff) rgba(2979ffff) rgba(84ffffcc) 45deg"
-                hyprctl keyword decoration:shadow:color "rgba(2979ff55)"
-                sed -i 's/^\$active_border.*/$active_border    = $border_magicule/' "$COLORS_FILE"
-                sed -i 's/^\$slime_glow.*/$slime_glow       = $glow_magicule/' "$COLORS_FILE"
+                [[ -f "$COLORS_CONF" ]] && {
+                    sed -i 's/^\$active_border.*/$active_border    = $border_magicule/' "$COLORS_CONF"
+                    sed -i 's/^\$slime_glow.*/$slime_glow       = $glow_magicule/' "$COLORS_CONF"
+                }
+                [[ -f "$COLORS_LUA" ]] && {
+                    sed -i 's/^M\.active_border.*/M.active_border   = M.presets.magicule.border/' "$COLORS_LUA"
+                    sed -i 's/^M\.slime_glow.*/M.slime_glow      = M.presets.magicule.glow/' "$COLORS_LUA"
+                }
+                hyprctl reload >/dev/null 2>&1 || true
                 notify_sage "Slime Core: Pure Magicule" "Border & Glow updated to 100% Cold Magicule Blue."
                 ;;
             "3."*)
-                hyprctl keyword general:col.active_border "rgba(00e5ffff) rgba(2979ffff) rgba(b388ffff) 45deg"
-                hyprctl keyword decoration:shadow:color "rgba(b388ff55)"
-                sed -i 's/^\$active_border.*/$active_border    = $border_beelzebub/' "$COLORS_FILE"
-                sed -i 's/^\$slime_glow.*/$slime_glow       = $glow_beelzebub/' "$COLORS_FILE"
+                [[ -f "$COLORS_CONF" ]] && {
+                    sed -i 's/^\$active_border.*/$active_border    = $border_beelzebub/' "$COLORS_CONF"
+                    sed -i 's/^\$slime_glow.*/$slime_glow       = $glow_beelzebub/' "$COLORS_CONF"
+                }
+                [[ -f "$COLORS_LUA" ]] && {
+                    sed -i 's/^M\.active_border.*/M.active_border   = M.presets.beelzebub.border/' "$COLORS_LUA"
+                    sed -i 's/^M\.slime_glow.*/M.slime_glow      = M.presets.beelzebub.glow/' "$COLORS_LUA"
+                }
+                hyprctl reload >/dev/null 2>&1 || true
                 notify_sage "Ultimate Skill: Beelzebub" "Border & Glow updated to Cyan / Void Purple."
                 ;;
         esac
@@ -82,13 +99,15 @@ case "$main_choice" in
 
         case "$anim_choice" in
             "1."*)
-                hyprctl keyword animation "borderangle, 0, 45, magiculeFlow, loop"
-                sed -i 's/animation = borderangle.*/animation = borderangle, 0, 45, magiculeFlow, loop/' "$ANIM_FILE"
+                [[ -f "$ANIM_CONF" ]] && sed -i 's/animation = borderangle.*/animation = borderangle, 0, 45, magiculeFlow, loop/' "$ANIM_CONF"
+                [[ -f "$ANIM_LUA" ]] && sed -i 's/leaf = "borderangle",.*enabled = [a-z]*/leaf = "borderangle",      enabled = false/' "$ANIM_LUA"
+                hyprctl reload >/dev/null 2>&1 || true
                 notify_sage "Magicule Conservation" "Continuous border rotation disabled (Battery Saver)."
                 ;;
             "2."*)
-                hyprctl keyword animation "borderangle, 1, 45, magiculeFlow, loop"
-                sed -i 's/animation = borderangle.*/animation = borderangle, 1, 45, magiculeFlow, loop/' "$ANIM_FILE"
+                [[ -f "$ANIM_CONF" ]] && sed -i 's/animation = borderangle.*/animation = borderangle, 1, 45, magiculeFlow, loop/' "$ANIM_CONF"
+                [[ -f "$ANIM_LUA" ]] && sed -i 's/leaf = "borderangle",.*enabled = [a-z]*/leaf = "borderangle",      enabled = true/' "$ANIM_LUA"
+                hyprctl reload >/dev/null 2>&1 || true
                 notify_sage "Magicule Flow Active" "Continuous border rotation enabled."
                 ;;
         esac
@@ -104,8 +123,9 @@ case "$main_choice" in
             | run_menu "Keyboard Layout") || exit 0
 
         selected_kb=$(echo "$kb_choice" | awk '{print $2}')
-        hyprctl keyword input:kb_layout "$selected_kb"
-        sed -i "s/^[[:space:]]*kb_layout = .*/    kb_layout = $selected_kb/" "$INPUT_FILE"
+        [[ -f "$INPUT_CONF" ]] && sed -i "s/^[[:space:]]*kb_layout = .*/    kb_layout = $selected_kb/" "$INPUT_CONF"
+        [[ -f "$INPUT_LUA" ]] && sed -i "s/^[[:space:]]*kb_layout[[:space:]]*= .*/        kb_layout  = \"$selected_kb\",/" "$INPUT_LUA"
+        hyprctl reload >/dev/null 2>&1 || true
         notify_sage "Language Matrix Updated" "Keyboard layout set to: $selected_kb (Alt+Shift to toggle)."
         ;;
 
@@ -129,4 +149,3 @@ case "$main_choice" in
         esac
         ;;
 esac
-
