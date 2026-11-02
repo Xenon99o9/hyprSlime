@@ -1,0 +1,8 @@
+# OS & Editor temporary files
+.DS_Store
+*~
+*.swp
+*.bak
+.idea/
+.vscode/
+
