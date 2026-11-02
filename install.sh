@@ -218,10 +218,17 @@ read -rp "  Proceed with GNU Stow deployment? [Y/n]: " do_stow
 if [[ ! "${do_stow:-Y}" =~ ^[Nn]$ ]]; then
     for pkg in "${PACKAGES[@]}"; do
         target_path="$HOME/.config/$pkg"
-        if [[ -e "$target_path" && ! -L "$target_path" ]]; then
-            mkdir -p "$BACKUP_DIR"
-            sage_say "Backing up existing $target_path -> $BACKUP_DIR/$pkg"
-            mv "$target_path" "$BACKUP_DIR/$pkg"
+        expected_src="$REPO_DIR/$pkg/.config/$pkg"
+        
+        # If target exists (directory, file OR symlink) and doesn't already point to our repo
+        if [[ -e "$target_path" || -L "$target_path" ]]; then
+            current_target="$(readlink -f "$target_path" 2>/dev/null || true)"
+            if [[ "$current_target" != "$expected_src" ]]; then
+                mkdir -p "$BACKUP_DIR"
+                sage_say "Backing up existing $target_path -> $BACKUP_DIR/$pkg"
+                # If it's a symlink, copy the symlink or move it
+                mv -T "$target_path" "$BACKUP_DIR/$pkg" 2>/dev/null || mv "$target_path" "$BACKUP_DIR/$pkg"
+            fi
         fi
     done
 
