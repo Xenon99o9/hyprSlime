@@ -1,0 +1,34 @@
+[
+  {
+    "id": "music",
+    "label": "MUSIC",
+    "short": "MUS",
+    "bind": "SUPER + M",
+    "cmd": "spotify",
+    "class": "^(Spotify|spotify)$"
+  },
+  {
+    "id": "sysmon",
+    "label": "BTOP",
+    "short": "SYS",
+    "bind": "SUPER + Escape",
+    "cmd": "kitty --class sysmon-btop -e btop",
+    "class": "^(sysmon-btop)$"
+  },
+  {
+    "id": "chat",
+    "label": "DISCORD",
+    "short": "CHT",
+    "bind": "SUPER + D",
+    "cmd": "discord",
+    "class": "^(discord|vesktop|WebCord)$"
+  },
+  {
+    "id": "browser",
+    "label": "WEB",
+    "short": "WEB",
+    "bind": "SUPER + B",
+    "cmd": "brave",
+    "class": ""
+  }
+]

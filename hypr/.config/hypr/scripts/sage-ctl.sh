@@ -6,6 +6,12 @@
 
 set -u
 
+# Ensure HYPRLAND_INSTANCE_SIGNATURE is set so hyprctl reload/dispatch always works
+if [[ -z "${HYPRLAND_INSTANCE_SIGNATURE:-}" && -d "/run/user/$(id -u)/hypr" ]]; then
+    sig=$(ls -t "/run/user/$(id -u)/hypr" 2>/dev/null | head -n 1 || true)
+    [[ -n "$sig" ]] && export HYPRLAND_INSTANCE_SIGNATURE="$sig"
+fi
+
 CONF_DIR="$HOME/.config/hypr/conf"
 COLORS_CONF="$CONF_DIR/colors.conf"
 COLORS_LUA="$CONF_DIR/colors.lua"
@@ -14,6 +20,8 @@ ANIM_LUA="$CONF_DIR/animations.lua"
 INPUT_CONF="$CONF_DIR/input.conf"
 INPUT_LUA="$CONF_DIR/input.lua"
 STATE_FILE="$HOME/.cache/hyprslime-state.json"
+WALL_CACHE="$HOME/.cache/hyprslime-wallpaper"
+DEFAULT_WALL="$HOME/.config/hypr/wallpapers/great-sage-void.png"
 
 json_escape() {
     local s="${1:-}"
@@ -156,6 +164,7 @@ get_status_json() {
     if [[ -f "$COLORS_LUA" ]]; then
         if grep -q "presets\.magicule" "$COLORS_LUA"; then active_theme="magicule"
         elif grep -q "presets\.beelzebub" "$COLORS_LUA"; then active_theme="beelzebub"
+        elif grep -q "presets\.hellflare" "$COLORS_LUA"; then active_theme="hellflare"
         fi
     fi
 
@@ -189,7 +198,15 @@ get_status_json() {
         fi
     fi
 
-    printf '{"cpu":%d,"ram":%d,"ramText":"%s","bat":%d,"batStatus":"%s","vol":%d,"muted":%s,"bright":%d,"wifiEnabled":%s,"wifiSsid":"%s","vpnActive":%s,"vpnName":"%s","vpns":%s,"btEnabled":%s,"btDevice":"%s","theme":"%s","borderFlow":%s,"kbLayout":"%s","powerProfile":"%s","media":"%s"}\n' \
+    # 12. Current Wallpaper
+    local current_wall="$DEFAULT_WALL"
+    if [[ -r "$WALL_CACHE" ]]; then
+        local cached
+        cached=$(cat "$WALL_CACHE" 2>/dev/null || true)
+        [[ -n "$cached" && -f "$cached" ]] && current_wall="$cached"
+    fi
+
+    printf '{"cpu":%d,"ram":%d,"ramText":"%s","bat":%d,"batStatus":"%s","vol":%d,"muted":%s,"bright":%d,"wifiEnabled":%s,"wifiSsid":"%s","vpnActive":%s,"vpnName":"%s","vpns":%s,"btEnabled":%s,"btDevice":"%s","theme":"%s","borderFlow":%s,"kbLayout":"%s","powerProfile":"%s","media":"%s","wallpaper":"%s"}\n' \
         "${cpu_usage:-0}" "${ram_usage:-0}" "$(json_escape "$ram_text")" \
         "${bat_pct:-100}" "$(json_escape "$bat_status")" \
         "${vol_pct:-50}" "$vol_muted" "${bright_pct:-100}" \
@@ -197,7 +214,62 @@ get_status_json() {
         "$vpn_active" "$(json_escape "$vpn_name")" "$vpn_list_json" \
         "$bt_enabled" "$(json_escape "$bt_device")" \
         "$active_theme" "$border_flow" "$(json_escape "$kb_layout")" \
-        "$(json_escape "$power_profile")" "$(json_escape "$media_text")"
+        "$(json_escape "$power_profile")" "$(json_escape "$media_text")" \
+        "$(json_escape "$current_wall")"
+}
+
+list_wallpapers_json() {
+    local dirs=(
+        "$HOME/.config/hypr/wallpapers"
+        "$HOME/Pictures/wallpapers"
+        "$HOME/Pictures"
+        "$HOME/Images/wallpapers"
+        "$HOME/Images"
+    )
+    local items=()
+    local seen=()
+    for d in "${dirs[@]}"; do
+        [[ -d "$d" ]] || continue
+        while IFS= read -r -d '' img; do
+            local real
+            real=$(readlink -f "$img" 2>/dev/null || echo "$img")
+            local dup=0
+            for s in "${seen[@]:-}"; do
+                [[ "$s" == "$real" ]] && { dup=1; break; }
+            done
+            [[ "$dup" -eq 1 ]] && continue
+            seen+=("$real")
+            local bname
+            bname=$(basename "$img")
+            local label="${bname%.*}"
+            label="${label//-/ }"
+            label="${label//_/ }"
+            items+=("{\"name\":\"$(json_escape "$label")\",\"path\":\"$(json_escape "$img")\"}")
+        done < <(find "$d" -maxdepth 1 -type f \( -iname "*.png" -o -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.webp" -o -iname "*.gif" \) -print0 2>/dev/null | sort -z)
+    done
+
+    if [[ ${#items[@]} -gt 0 ]]; then
+        local IFS=,
+        echo "[${items[*]}]"
+    else
+        echo "[]"
+    fi
+}
+
+apply_wallpaper() {
+    local wall_path="${1:-$DEFAULT_WALL}"
+    local trans="${2:-wave}"
+    [[ -f "$wall_path" ]] || return 1
+    mkdir -p "$(dirname "$WALL_CACHE")"
+    echo "$wall_path" > "$WALL_CACHE"
+
+    if command -v swww >/dev/null 2>&1; then
+        pgrep -x swww-daemon >/dev/null 2>&1 || swww-daemon --format xrgb &
+        swww img "$wall_path" --transition-type "$trans" --transition-fps 120 --transition-duration 1.2 &
+    elif command -v awww >/dev/null 2>&1; then
+        pgrep -x awww-daemon >/dev/null 2>&1 || awww-daemon --format xrgb &
+        awww img "$wall_path" --transition-type "$trans" --transition-fps 120 --transition-duration 1.2 &
+    fi
 }
 
 scan_wifi_json() {
@@ -224,6 +296,45 @@ scan_wifi_json() {
 case "${1:-status}" in
     status)
         get_status_json
+        ;;
+    app-list)
+        python3 - << 'EOF'
+import glob, json, os, re
+
+apps = []
+seen = set()
+dirs = ["/usr/share/applications", os.path.expanduser("~/.local/share/applications")]
+for d in dirs:
+    for path in sorted(glob.glob(os.path.join(d, "*.desktop"))):
+        try:
+            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+            if "NoDisplay=true" in content or "Hidden=true" in content:
+                continue
+            name_m = re.search(r"^Name=(.+)$", content, re.M)
+            exec_m = re.search(r"^Exec=(.+)$", content, re.M)
+            desc_m = re.search(r"^Comment=(.+)$", content, re.M)
+            if not name_m or not exec_m:
+                continue
+            name = name_m.group(1).strip()
+            if name.lower() in seen:
+                continue
+            seen.add(name.lower())
+            cmd = re.sub(r"\s+%[fFuUdDnNickvm]", "", exec_m.group(1).strip())
+            desc = desc_m.group(1).strip() if desc_m else "Application"
+            apps.append({"name": name, "exec": cmd, "desc": desc})
+        except Exception:
+            pass
+
+apps.sort(key=lambda x: x["name"].lower())
+print(json.dumps(apps[:120]))
+EOF
+        ;;
+    wallpaper-list)
+        list_wallpapers_json
+        ;;
+    set-wallpaper)
+        apply_wallpaper "${2:-$DEFAULT_WALL}" "${3:-wave}"
         ;;
     wifi-list)
         scan_wifi_json
@@ -299,6 +410,16 @@ case "${1:-status}" in
                 [[ -f "$COLORS_LUA" ]] && {
                     sed -i 's/^M\.active_border.*/M.active_border   = M.presets.beelzebub.border/' "$COLORS_LUA"
                     sed -i 's/^M\.slime_glow.*/M.slime_glow      = M.presets.beelzebub.glow/' "$COLORS_LUA"
+                }
+                ;;
+            hellflare)
+                [[ -f "$COLORS_CONF" ]] && {
+                    sed -i 's/^\$active_border.*/$active_border    = $border_hellflare/' "$COLORS_CONF"
+                    sed -i 's/^\$slime_glow.*/$slime_glow       = $glow_hellflare/' "$COLORS_CONF"
+                }
+                [[ -f "$COLORS_LUA" ]] && {
+                    sed -i 's/^M\.active_border.*/M.active_border   = M.presets.hellflare.border/' "$COLORS_LUA"
+                    sed -i 's/^M\.slime_glow.*/M.slime_glow      = M.presets.hellflare.glow/' "$COLORS_LUA"
                 }
                 ;;
             *)

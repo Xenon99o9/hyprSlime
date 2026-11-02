@@ -22,4 +22,5 @@ require("conf.animations")
 -- 3. Controls & Window Management
 require("conf.input")
 require("conf.keybinds")
+require("conf.special")
 require("conf.windowrules")

@@ -1,5 +1,7 @@
 singleton SageState 1.0 SageState.qml
+SageFrame 1.0 SageFrame.qml
 TopBar 1.0 TopBar.qml
-KeybindsSheet 1.0 KeybindsSheet.qml
-ControlCenter 1.0 ControlCenter.qml
-
+CentralDashboard 1.0 CentralDashboard.qml
+TopCenterMenu 1.0 TopCenterMenu.qml
+BottomLauncher 1.0 BottomLauncher.qml
+BottomRightMenu 1.0 BottomRightMenu.qml

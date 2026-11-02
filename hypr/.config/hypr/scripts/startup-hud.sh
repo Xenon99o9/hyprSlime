@@ -3,7 +3,12 @@
 #  HYPRSLIME — Great Sage HUD & Wallpaper Startup Script (startup-hud.sh)
 # ══════════════════════════════════════════════════════════════════════════════
 
-WALLPAPER="$HOME/.config/hypr/wallpapers/great-sage-void.png"
+WALL_CACHE="$HOME/.cache/hyprslime-wallpaper"
+WALLPAPER="$HOME/.config/hypr/wallpapers/rimuru-great-sage.png"
+if [[ -r "$WALL_CACHE" ]]; then
+    cached_wall="$(cat "$WALL_CACHE" 2>/dev/null || true)"
+    [[ -n "$cached_wall" && -f "$cached_wall" ]] && WALLPAPER="$cached_wall"
+fi
 
 # 1. Stop any legacy bars (waybar / old quickshell instances)
 pkill -x waybar 2>/dev/null || true

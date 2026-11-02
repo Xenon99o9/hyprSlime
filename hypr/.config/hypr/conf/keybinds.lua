@@ -6,16 +6,18 @@
 local programs = require("conf.programs")
 local mainMod = "SUPER"
 
--- Core Applications
-hl.bind(mainMod .. " + Return", hl.dsp.exec_cmd(programs.terminal))
-hl.bind(mainMod .. " + T",      hl.dsp.exec_cmd(programs.terminal))
-hl.bind(mainMod .. " + E",      hl.dsp.exec_cmd(programs.fileManager))
-hl.bind(mainMod .. " + B",      hl.dsp.exec_cmd(programs.browser))
-hl.bind(mainMod .. " + R",      hl.dsp.exec_cmd(programs.menu))
-hl.bind(mainMod .. " + Space",  hl.dsp.exec_cmd(programs.menu))
+-- Core Applications (Note: Super+B, Super+M, Super+D, Super+Escape are Special Workspaces in conf/special.lua)
+hl.bind(mainMod .. " + Return",    hl.dsp.exec_cmd(programs.terminal))
+hl.bind(mainMod .. " + T",         hl.dsp.exec_cmd(programs.terminal))
+hl.bind(mainMod .. " + E",         hl.dsp.exec_cmd(programs.fileManager))
+hl.bind(mainMod .. " + SHIFT + B", hl.dsp.exec_cmd(programs.browser))
+hl.bind(mainMod .. " + R",         hl.dsp.exec_cmd("quickshell ipc call sage toggleLauncher || " .. programs.menu))
+hl.bind(mainMod .. " + Space",     hl.dsp.exec_cmd("quickshell ipc call sage toggleLauncher || " .. programs.menu))
 
--- Great Sage HUD, Control Center & Keybinds Cheat Sheet
+-- Great Sage HUD, Control Center, Wallpapers & Keybinds Cheat Sheet
 hl.bind(mainMod .. " + SHIFT + G", hl.dsp.exec_cmd("quickshell ipc call sage toggleSettings || " .. programs.sageMenu))
+hl.bind(mainMod .. " + W",         hl.dsp.exec_cmd("quickshell ipc call sage nextWallpaper"))
+hl.bind(mainMod .. " + SHIFT + W", hl.dsp.exec_cmd("quickshell ipc call sage openWallpapers"))
 hl.bind(mainMod .. " + H",         hl.dsp.exec_cmd("quickshell ipc call sage toggleKeybinds"))
 hl.bind(mainMod .. " + F1",        hl.dsp.exec_cmd("quickshell ipc call sage toggleKeybinds"))
 hl.bind(mainMod .. " + V",         hl.dsp.exec_cmd("cliphist list | rofi -dmenu -p '◈ Great Sage Memory' | cliphist decode | wl-copy"))

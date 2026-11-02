@@ -7,29 +7,53 @@ import Quickshell.Io
 
 ShellRoot {
     TopBar {}
-    KeybindsSheet {}
-    ControlCenter {}
+    CentralDashboard {}
+    TopCenterMenu {}
+    BottomLauncher {}
+    BottomRightMenu {}
 
-    // IPC Handler for Keyboard Shortcuts (e.g., `quickshell ipc call sage toggleSettings`)
+    // IPC Handler for Keyboard Shortcuts (`quickshell ipc call sage <fn>`)
     IpcHandler {
         target: "sage"
 
         function toggleSettings() {
-            SageState.controlCenterOpen = !SageState.controlCenterOpen;
-            if (SageState.controlCenterOpen) SageState.keybindsOpen = false;
+            SageState.toggleDashboard();
+        }
+
+        function toggleLauncher() {
+            SageState.toggleLauncher();
+        }
+
+        function toggleTopDropdown() {
+            SageState.toggleTopDropdown();
+        }
+
+        function toggleCornerMenu() {
+            SageState.toggleCornerMenu();
         }
 
         function toggleKeybinds() {
-            SageState.keybindsOpen = !SageState.keybindsOpen;
-            if (SageState.keybindsOpen) SageState.controlCenterOpen = false;
+            if (SageState.dashboardOpen && SageState.activeTab === 4) {
+                SageState.dashboardOpen = false;
+            } else {
+                SageState.openDashboardTab(4);
+            }
+        }
+
+        function openSpecialWs() {
+            SageState.openDashboardTab(1);
+        }
+
+        function openWallpapers() {
+            SageState.openDashboardTab(2);
+        }
+
+        function nextWallpaper() {
+            SageState.cycleWallpaper();
         }
 
         function openNetwork() {
-            SageState.activeTab = 1;
-            SageState.controlCenterOpen = true;
-            SageState.keybindsOpen = false;
-            SageState.scanWifi();
+            SageState.openDashboardTab(3);
         }
     }
 }
-

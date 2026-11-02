@@ -32,12 +32,16 @@ local M = {
             border = { colors = { "rgba(00e5ffff)", "rgba(2979ffff)", "rgba(b388ffff)" }, angle = 45 },
             glow   = 0x55b388ff,
         },
+        hellflare = {
+            border = { colors = { "rgba(ff5252ff)", "rgba(ffd54fff)", "rgba(ff867fff)" }, angle = 45 },
+            glow   = 0x55ff5252,
+        },
     },
 }
 
 -- Active preset (Great Sage by default)
-M.active_border   = M.presets.great_sage.border
-M.slime_glow      = M.presets.great_sage.glow
+M.active_border   = M.presets.hellflare.border
+M.slime_glow      = M.presets.hellflare.glow
 M.inactive_border = M.bg_inactive
 
 return M
