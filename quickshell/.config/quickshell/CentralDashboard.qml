@@ -1612,11 +1612,7 @@ Variants {
                                                     anchors.fill: parent
                                                     cursorShape: Qt.PointingHandCursor
                                                     onClicked: {
-                                                        SageState.themeName = themeCard.modelData.id;
-                                                        SageState.runCmd([SageState.ctlScript, "set-theme", themeCard.modelData.id]);
-                                                        if (themeCard.modelData.wall) {
-                                                            SageState.setWallpaper(themeCard.modelData.wall);
-                                                        }
+                                                        SageState.setTheme(themeCard.modelData.id, themeCard.modelData.wall);
                                                     }
                                                 }
                                             }
@@ -1821,32 +1817,38 @@ Variants {
                                                     border.width: 1
                                                     border.color: pickMouse.containsMouse ? SageState.secondaryAccent : SageState.primaryAccent
 
-                                                    Row {
+                                                    Item {
                                                         x: 8
                                                         y: 4
                                                         width: 374
                                                         height: 20
-                                                        spacing: 8
 
-                                                        Text {
-                                                            text: pickItem.modelData.tag
-                                                            color: SageState.secondaryAccent
-                                                            font.family: "JetBrainsMono Nerd Font"
-                                                            font.pixelSize: 9
-                                                            font.bold: true
-                                                        }
+                                                        Row {
+                                                            anchors.left: parent.left
+                                                            anchors.verticalCenter: parent.verticalCenter
+                                                            spacing: 8
 
-                                                        Text {
-                                                            width: 280
-                                                            text: pickItem.modelData.name
-                                                            color: SageState.textPrimary
-                                                            font.family: "JetBrainsMono Nerd Font"
-                                                            font.pixelSize: 10
-                                                            elide: Text.ElideRight
+                                                            Text {
+                                                                text: pickItem.modelData.tag
+                                                                color: SageState.secondaryAccent
+                                                                font.family: "JetBrainsMono Nerd Font"
+                                                                font.pixelSize: 9
+                                                                font.bold: true
+                                                            }
+
+                                                            Text {
+                                                                width: 270
+                                                                text: pickItem.modelData.name
+                                                                color: SageState.textPrimary
+                                                                font.family: "JetBrainsMono Nerd Font"
+                                                                font.pixelSize: 10
+                                                                elide: Text.ElideRight
+                                                            }
                                                         }
 
                                                         Text {
                                                             anchors.right: parent.right
+                                                            anchors.verticalCenter: parent.verticalCenter
                                                             text: "＋ ADD"
                                                             color: SageState.emeraldOk
                                                             font.family: "JetBrainsMono Nerd Font"

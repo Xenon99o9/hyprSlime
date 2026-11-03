@@ -20,6 +20,7 @@ hl.bind = function(keys, action, opts)
     then
         return raw_bind(keys, function()
             _G._hyprslime_super_tap = false
+            hl.exec_cmd("quickshell ipc call sage superCancel")
             if type(action) == "function" then
                 action()
             else
@@ -33,23 +34,25 @@ end
 -- Super alone (Tap & Release Super_L / Super_R) -> Open/Close Bottom-Center App Launcher
 raw_bind("Super_L", function()
     _G._hyprslime_super_tap = true
+    hl.exec_cmd("quickshell ipc call sage superPress")
 end, { non_consuming = true, ignore_mods = true })
 
 raw_bind("Super_R", function()
     _G._hyprslime_super_tap = true
+    hl.exec_cmd("quickshell ipc call sage superPress")
 end, { non_consuming = true, ignore_mods = true })
 
 raw_bind("Super_L", function()
     if _G._hyprslime_super_tap then
         _G._hyprslime_super_tap = false
-        hl.exec_cmd("quickshell ipc call sage toggleLauncher || " .. programs.menu)
+        hl.exec_cmd("quickshell ipc call sage superRelease || " .. programs.menu)
     end
 end, { release = true, non_consuming = true, ignore_mods = true })
 
 raw_bind("Super_R", function()
     if _G._hyprslime_super_tap then
         _G._hyprslime_super_tap = false
-        hl.exec_cmd("quickshell ipc call sage toggleLauncher || " .. programs.menu)
+        hl.exec_cmd("quickshell ipc call sage superRelease || " .. programs.menu)
     end
 end, { release = true, non_consuming = true, ignore_mods = true })
 

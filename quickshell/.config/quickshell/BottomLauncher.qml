@@ -27,14 +27,8 @@ Variants {
                                      : WlrKeyboardFocus.None
         exclusionMode: ExclusionMode.Ignore
 
-        Shortcut {
-            sequences: ["Meta", "Super", "Alt+F1"]
-            onActivated: SageState.launcherOpen = false
-        }
-
         property string queryText: ""
         property int selectedIndex: 0
-        property bool superPressedInside: false
 
         Timer {
             id: focusGuardTimer
@@ -77,7 +71,6 @@ Variants {
 
         onVisibleChanged: {
             if (visible) {
-                superPressedInside = false;
                 queryText = "";
                 selectedIndex = 0;
                 appFlick.contentY = 0;
@@ -194,21 +187,6 @@ Variants {
                             onActiveFocusChanged: {
                                 if (!activeFocus && launcherWindow.visible) {
                                     focusGuardTimer.restart();
-                                }
-                            }
-                            Keys.onPressed: (event) => {
-                                if (event.key === Qt.Key_Super_L || event.key === Qt.Key_Super_R || event.key === Qt.Key_Meta) {
-                                    SageState.lastLauncherToggleTime = Date.now();
-                                    SageState.launcherOpen = false;
-                                    event.accepted = true;
-                                    return;
-                                }
-                            }
-                            Keys.onReleased: (event) => {
-                                if (event.key === Qt.Key_Super_L || event.key === Qt.Key_Super_R || event.key === Qt.Key_Meta) {
-                                    SageState.lastLauncherToggleTime = Date.now();
-                                    SageState.launcherOpen = false;
-                                    event.accepted = true;
                                 }
                             }
                             Keys.onEscapePressed: {

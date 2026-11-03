@@ -44,6 +44,45 @@ Variants {
         }
         readonly property bool inSpecialView: barWindow.showSpecialLayer || barWindow.activeSpecialLabel.length > 0
 
+        readonly property var hyprMonitor: {
+            if (!Hyprland.monitors || !Hyprland.monitors.values) return null;
+            const scrName = barWindow.screen ? barWindow.screen.name : "";
+            const mons = Hyprland.monitors.values;
+            for (let i = 0; i < mons.length; ++i) {
+                if (mons[i] && mons[i].name === scrName) {
+                    return mons[i];
+                }
+            }
+            return null;
+        }
+
+        readonly property int monitorActiveWsId: {
+            // 1. From Quickshell HyprlandMonitor
+            if (barWindow.hyprMonitor && barWindow.hyprMonitor.activeWorkspace && barWindow.hyprMonitor.activeWorkspace.id > 0) {
+                return barWindow.hyprMonitor.activeWorkspace.id;
+            }
+            // 2. From SageState tracking map if available
+            const scrName = barWindow.screen ? barWindow.screen.name : "";
+            if (SageState.monitorActiveWorkspaces && SageState.monitorActiveWorkspaces[scrName]) {
+                return SageState.monitorActiveWorkspaces[scrName];
+            }
+            // 3. Fallback: if this monitor is globally focused, use Hyprland.focusedWorkspace
+            if (Hyprland.focusedWorkspace && Hyprland.focusedWorkspace.id > 0) {
+                if (Quickshell.screens.length <= 1 || (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name === scrName)) {
+                    return Hyprland.focusedWorkspace.id;
+                }
+            }
+            // 4. Fallback default by screen order (screen 0 -> 1, screen 1 -> 6)
+            if (Quickshell.screens.length > 1) {
+                for (let s = 0; s < Quickshell.screens.length; ++s) {
+                    if (Quickshell.screens[s].name === scrName) {
+                        return s === 0 ? 1 : 6;
+                    }
+                }
+            }
+            return 1;
+        }
+
         // ═══════════════════════════════════════════════════════════════════════
         // 1. LEFT ISLAND: RAPHAEL Emblem + Normal Workspaces (Special WS Hidden Behind)
         // ═══════════════════════════════════════════════════════════════════════
@@ -145,8 +184,16 @@ Variants {
                         Rectangle {
                             id: wsPill
                             required property int index
-                            readonly property int wsId: index + 1
-                            readonly property bool isFocused: Hyprland.focusedWorkspace ? (Hyprland.focusedWorkspace.id === wsId) : (wsId === 1)
+
+                            // Workspaces 1..5 in slots 0..4.
+                            // In slot 5 (index 5): displays workspace 6 by default, OR displays any active workspace > 6 on this screen!
+                            readonly property int wsId: (index === 5 && barWindow.monitorActiveWsId > 6)
+                                                         ? barWindow.monitorActiveWsId
+                                                         : (index + 1)
+
+                            // Active on THIS screen independently of other screens!
+                            readonly property bool isCurrentScreenActive: (wsId === barWindow.monitorActiveWsId)
+                            readonly property bool isFocused: isCurrentScreenActive
                             readonly property string appEmblem: (SageState.workspaceIcons && SageState.workspaceIcons[wsId.toString()])
                                                                 ? SageState.workspaceIcons[wsId.toString()]
                                                                 : ""
@@ -308,6 +355,13 @@ Variants {
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: SageState.switchNormalWorkspace(wsPill.wsId)
+                                onWheel: (wheel) => {
+                                    if (wheel.angleDelta.y > 0) {
+                                        SageState.switchNormalWorkspace(Math.max(1, barWindow.monitorActiveWsId - 1));
+                                    } else if (wheel.angleDelta.y < 0) {
+                                        SageState.switchNormalWorkspace(Math.min(10, barWindow.monitorActiveWsId + 1));
+                                    }
+                                }
                             }
                         }
                     }

@@ -14,14 +14,14 @@ hl.monitor({
 hl.monitor({
     output    = "eDP-1",
     mode      = "1920x1080@144.00",
-    position  = "0x0",
+    position  = "840x0",
     scale     = 1.0,
     transform = 0,
 })
 hl.monitor({
     output    = "HDMI-A-1",
     mode      = "1366x768@59.79",
-    position  = "-1366x0",
+    position  = "-540x160",
     scale     = 1.0,
     transform = 0,
 })

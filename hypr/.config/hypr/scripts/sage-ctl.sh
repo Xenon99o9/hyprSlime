@@ -22,6 +22,7 @@ INPUT_LUA="$CONF_DIR/input.lua"
 STATE_FILE="$HOME/.cache/hyprslime-state.json"
 WALL_CACHE="$HOME/.cache/hyprslime-wallpaper"
 POWER_CACHE="$HOME/.cache/hyprslime-power"
+THEME_CACHE="$HOME/.cache/hyprslime-theme"
 DEFAULT_WALL="$HOME/.config/hypr/wallpapers/great-sage-void.png"
 
 json_escape() {
@@ -161,13 +162,21 @@ get_status_json() {
     fi
 
     # 9. Active Theme, Border Flow & Keyboard Layout from config
-    local active_theme="great_sage"
-    if [[ -f "$COLORS_LUA" ]]; then
-        if grep -q "presets\.magicule" "$COLORS_LUA"; then active_theme="magicule"
-        elif grep -q "presets\.beelzebub" "$COLORS_LUA"; then active_theme="beelzebub"
-        elif grep -q "presets\.hellflare" "$COLORS_LUA"; then active_theme="hellflare"
-        fi
+    local active_theme=""
+    if [[ -f "$THEME_CACHE" ]]; then
+        active_theme=$(tr -d '[:space:]' < "$THEME_CACHE" 2>/dev/null)
     fi
+    if [[ -z "$active_theme" && -f "$COLORS_LUA" ]]; then
+        local found_theme
+        found_theme=$(awk -F'presets\\.' '/^M\\.active_border/{print $2}' "$COLORS_LUA" | awk -F'.' '{print $1}')
+        [[ -n "$found_theme" ]] && active_theme="$found_theme"
+    fi
+    if [[ -z "$active_theme" && -f "$COLORS_CONF" ]]; then
+        local found_theme_conf
+        found_theme_conf=$(awk -F'\\$border_' '/^\\$active_border/{print $2}' "$COLORS_CONF" | awk '{print $1}')
+        [[ -n "$found_theme_conf" ]] && active_theme="$found_theme_conf"
+    fi
+    [[ -z "$active_theme" ]] && active_theme="great_sage"
 
     local border_flow="false"
     if [[ -f "$ANIM_LUA" ]] && grep -q 'leaf = "borderangle".*enabled = true' "$ANIM_LUA"; then
@@ -268,14 +277,26 @@ apply_wallpaper() {
     local trans="${2:-wave}"
     [[ -f "$wall_path" ]] || return 1
     mkdir -p "$(dirname "$WALL_CACHE")"
-    echo "$wall_path" > "$WALL_CACHE"
+    echo "$wall_path" > "${WALL_CACHE}.tmp" && mv "${WALL_CACHE}.tmp" "$WALL_CACHE"
+
+    local rt_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+    local wl_sock="$rt_dir/${WAYLAND_DISPLAY:-wayland-1}"
+    if [[ ! -S "$wl_sock" ]]; then
+        return 0
+    fi
 
     if command -v swww >/dev/null 2>&1; then
-        pgrep -x swww-daemon >/dev/null 2>&1 || swww-daemon --format xrgb &
-        swww img "$wall_path" --transition-type "$trans" --transition-fps 120 --transition-duration 1.2 &
+        if ! pgrep -x swww-daemon >/dev/null 2>&1 && ! pgrep -x awww-daemon >/dev/null 2>&1; then
+            (swww-daemon --format xrgb >/dev/null 2>&1 &)
+            sleep 0.2
+        fi
+        (swww img "$wall_path" --transition-type "$trans" --transition-fps 120 --transition-duration 1.2 >/dev/null 2>&1 &)
     elif command -v awww >/dev/null 2>&1; then
-        pgrep -x awww-daemon >/dev/null 2>&1 || awww-daemon --format xrgb &
-        awww img "$wall_path" --transition-type "$trans" --transition-fps 120 --transition-duration 1.2 &
+        if ! pgrep -x awww-daemon >/dev/null 2>&1 && ! pgrep -x swww-daemon >/dev/null 2>&1; then
+            (awww-daemon --format xrgb >/dev/null 2>&1 &)
+            sleep 0.2
+        fi
+        (awww img "$wall_path" --transition-type "$trans" --transition-fps 120 --transition-duration 1.2 >/dev/null 2>&1 &)
     fi
 }
 
@@ -583,8 +604,13 @@ EOF
         ;;
     set-theme)
         theme="${2:-great_sage}"
+        custom_wall="${3:-}"
+        mkdir -p "$(dirname "$THEME_CACHE")"
+        echo "$theme" > "${THEME_CACHE}.tmp" && mv "${THEME_CACHE}.tmp" "$THEME_CACHE"
+        wall=""
         case "$theme" in
             magicule)
+                wall="$HOME/.config/hypr/wallpapers/rimuru-magicule.png"
                 [[ -f "$COLORS_CONF" ]] && {
                     sed -i 's/^\$active_border.*/$active_border    = $border_magicule/' "$COLORS_CONF"
                     sed -i 's/^\$slime_glow.*/$slime_glow       = $glow_magicule/' "$COLORS_CONF"
@@ -595,6 +621,7 @@ EOF
                 }
                 ;;
             beelzebub)
+                wall="$HOME/.config/hypr/wallpapers/beelzebub-abyss.png"
                 [[ -f "$COLORS_CONF" ]] && {
                     sed -i 's/^\$active_border.*/$active_border    = $border_beelzebub/' "$COLORS_CONF"
                     sed -i 's/^\$slime_glow.*/$slime_glow       = $glow_beelzebub/' "$COLORS_CONF"
@@ -605,6 +632,7 @@ EOF
                 }
                 ;;
             hellflare)
+                wall="$HOME/.config/hypr/wallpapers/crimson-hellflare.png"
                 [[ -f "$COLORS_CONF" ]] && {
                     sed -i 's/^\$active_border.*/$active_border    = $border_hellflare/' "$COLORS_CONF"
                     sed -i 's/^\$slime_glow.*/$slime_glow       = $glow_hellflare/' "$COLORS_CONF"
@@ -615,6 +643,7 @@ EOF
                 }
                 ;;
             diablo)
+                wall="$HOME/.config/hypr/wallpapers/diablo-primordial.png"
                 [[ -f "$COLORS_CONF" ]] && {
                     sed -i 's/^\$active_border.*/$active_border    = $border_diablo/' "$COLORS_CONF"
                     sed -i 's/^\$slime_glow.*/$slime_glow       = $glow_diablo/' "$COLORS_CONF"
@@ -625,6 +654,7 @@ EOF
                 }
                 ;;
             testarossa)
+                wall="$HOME/.config/hypr/wallpapers/testarossa-primordial.png"
                 [[ -f "$COLORS_CONF" ]] && {
                     sed -i 's/^\$active_border.*/$active_border    = $border_testarossa/' "$COLORS_CONF"
                     sed -i 's/^\$slime_glow.*/$slime_glow       = $glow_testarossa/' "$COLORS_CONF"
@@ -635,6 +665,7 @@ EOF
                 }
                 ;;
             carrera)
+                wall="$HOME/.config/hypr/wallpapers/carrera-primordial.png"
                 [[ -f "$COLORS_CONF" ]] && {
                     sed -i 's/^\$active_border.*/$active_border    = $border_carrera/' "$COLORS_CONF"
                     sed -i 's/^\$slime_glow.*/$slime_glow       = $glow_carrera/' "$COLORS_CONF"
@@ -645,6 +676,7 @@ EOF
                 }
                 ;;
             ultima)
+                wall="$HOME/.config/hypr/wallpapers/ultima-primordial.png"
                 [[ -f "$COLORS_CONF" ]] && {
                     sed -i 's/^\$active_border.*/$active_border    = $border_ultima/' "$COLORS_CONF"
                     sed -i 's/^\$slime_glow.*/$slime_glow       = $glow_ultima/' "$COLORS_CONF"
@@ -655,6 +687,7 @@ EOF
                 }
                 ;;
             mustang)
+                wall="$HOME/.config/hypr/wallpapers/mustang-primordial.png"
                 [[ -f "$COLORS_CONF" ]] && {
                     sed -i 's/^\$active_border.*/$active_border    = $border_mustang/' "$COLORS_CONF"
                     sed -i 's/^\$slime_glow.*/$slime_glow       = $glow_mustang/' "$COLORS_CONF"
@@ -664,7 +697,8 @@ EOF
                     sed -i 's/^M\.slime_glow.*/M.slime_glow      = M.presets.mustang.glow/' "$COLORS_LUA"
                 }
                 ;;
-            *)
+            great_sage|*)
+                wall="$HOME/.config/hypr/wallpapers/rimuru-great-sage.png"
                 [[ -f "$COLORS_CONF" ]] && {
                     sed -i 's/^\$active_border.*/$active_border    = $border_great_sage/' "$COLORS_CONF"
                     sed -i 's/^\$slime_glow.*/$slime_glow       = $glow_great_sage/' "$COLORS_CONF"
@@ -675,6 +709,15 @@ EOF
                 }
                 ;;
         esac
+        target_wall=""
+        if [[ -n "$custom_wall" && -f "$custom_wall" ]]; then
+            target_wall="$custom_wall"
+        elif [[ -n "$wall" && -f "$wall" ]]; then
+            target_wall="$wall"
+        fi
+        if [[ -n "$target_wall" ]]; then
+            apply_wallpaper "$target_wall" "wave"
+        fi
         hyprctl reload >/dev/null 2>&1 || true
         ;;
     set-flow)
@@ -745,6 +788,7 @@ for m in raw:
         "disabled": bool(m.get("disabled", False)),
         "mirrorOf": m.get("mirrorOf", "none") or "none",
         "focused": bool(m.get("focused", False)),
+        "activeWsId": int(m.get("activeWorkspace", {}).get("id", 1) or 1),
         "modes": modes[:16]
     })
 

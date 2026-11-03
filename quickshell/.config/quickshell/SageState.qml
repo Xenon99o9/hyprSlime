@@ -55,15 +55,12 @@ Singleton {
     property double lastSuperPressTime: 0
     property double lastLauncherToggleTime: 0
     property bool superComboUsed: false
+    property bool launcherWasOpenOnPress: false
 
     property alias controlCenterOpen: root.dashboardOpen
 
     function superPress() {
-        if (root.launcherOpen) {
-            root.launcherOpen = false;
-            lastLauncherToggleTime = Date.now();
-            return;
-        }
+        launcherWasOpenOnPress = root.launcherOpen;
         lastSuperPressTime = Date.now();
         superComboUsed = false;
     }
@@ -74,19 +71,20 @@ Singleton {
 
     function superRelease() {
         const now = Date.now();
-        if (root.launcherOpen) {
-            root.launcherOpen = false;
-            lastLauncherToggleTime = now;
-            return;
-        }
-        if (now - lastLauncherToggleTime < 220) {
-            return;
-        }
         if (superComboUsed) {
             superComboUsed = false;
             return;
         }
-        if (lastSuperPressTime > 0 && (now - lastSuperPressTime > 700)) {
+        if (lastSuperPressTime > 0 && (now - lastSuperPressTime > 800)) {
+            return;
+        }
+        if (launcherWasOpenOnPress || root.launcherOpen) {
+            root.launcherOpen = false;
+            launcherWasOpenOnPress = false;
+            lastLauncherToggleTime = now;
+            return;
+        }
+        if (now - lastLauncherToggleTime < 220) {
             return;
         }
         lastLauncherToggleTime = now;
@@ -292,6 +290,7 @@ Singleton {
     property string btDevice: "Off"
 
     property string themeName: "great_sage"
+    property double lastThemeChangeTime: 0
     property bool borderFlow: false
     property bool holographicOpacity: true
     property string kbLayout: "fr"
@@ -316,6 +315,15 @@ Singleton {
     property var specialWorkspaces: []
     property var monitorList: []
     property int selectedMonitorIndex: 0
+    property var monitorActiveWorkspaces: ({})
+
+    function setMonitorActiveWorkspace(monName, wsId) {
+        if (!monName || wsId <= 0) return;
+        const copy = Object.assign({}, monitorActiveWorkspaces);
+        copy[monName] = wsId;
+        monitorActiveWorkspaces = copy;
+    }
+
     property var appList: []
     property var runningApps: []
     property var workspaceIcons: ({})
@@ -426,10 +434,31 @@ Singleton {
         specialModProc.running = true;
     }
 
+    // Theme Actions
+    function setTheme(newTheme, wallPath) {
+        if (!newTheme) return;
+        themeName = newTheme;
+        if (wallPath) {
+            currentWallpaper = wallPath;
+        }
+        lastThemeChangeTime = Date.now();
+        if (themeProc.running) {
+            themeProc.running = false;
+        }
+        themeProc.command = [ctlScript, "set-theme", newTheme, wallPath || ""];
+        themeProc.running = true;
+    }
+
     // Wallpaper Actions
     function setWallpaper(path) {
+        if (!path) return;
         currentWallpaper = path;
-        runCmd([ctlScript, "set-wallpaper", path, transitionType]);
+        lastThemeChangeTime = Date.now();
+        if (wallProc.running) {
+            wallProc.running = false;
+        }
+        wallProc.command = [ctlScript, "set-wallpaper", path, transitionType];
+        wallProc.running = true;
     }
 
     function cycleWallpaper() {
@@ -635,12 +664,26 @@ Singleton {
             } else if (event.name === "activespecial" || event.name === "workspace" || event.name === "workspacev2") {
                 root.loadSpecialWorkspaces();
                 root.loadRunningApps();
+                if (event.name === "workspace" || event.name === "workspacev2") {
+                    const wsId = parseInt(event.data);
+                    if (wsId > 0 && Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
+                        root.setMonitorActiveWorkspace(Hyprland.focusedMonitor.name, wsId);
+                    }
+                }
             } else if (event.name === "openwindow" || event.name === "closewindow" || event.name === "movewindow") {
                 root.loadSpecialWorkspaces();
                 root.loadRunningApps();
             } else if (event.name === "focusedmon" || event.name === "focusedmonv2") {
                 if (!root.dashboardOpen && !root.topDropdownOpen && !root.launcherOpen && !root.cornerMenuOpen && !root.trayMenuOpen) {
                     root.lockActiveScreen("");
+                }
+                const parts = (event.data || "").split(",");
+                if (parts.length >= 2) {
+                    const mName = parts[0].trim();
+                    const wId = parseInt(parts[1].trim());
+                    if (mName && wId > 0) {
+                        root.setMonitorActiveWorkspace(mName, wId);
+                    }
                 }
             }
         }
@@ -700,6 +743,18 @@ Singleton {
     Process {
         id: actionProc
         command: ["true"]
+    }
+
+    Process {
+        id: themeProc
+        command: ["true"]
+        onExited: root.refresh()
+    }
+
+    Process {
+        id: wallProc
+        command: ["true"]
+        onExited: root.refresh()
     }
 
     Process {
@@ -774,6 +829,12 @@ Singleton {
                     root.monitorList = parsed;
                     if (root.selectedMonitorIndex >= parsed.length) {
                         root.selectedMonitorIndex = 0;
+                    }
+                    for (let i = 0; i < parsed.length; ++i) {
+                        const m = parsed[i];
+                        if (m && m.name && m.activeWsId) {
+                            root.setMonitorActiveWorkspace(m.name, m.activeWsId);
+                        }
                     }
                 } catch (e) {
                     root.monitorList = [];
@@ -855,14 +916,18 @@ Singleton {
                     root.vpnList = data.vpns !== undefined ? data.vpns : [];
                     root.btEnabled = data.btEnabled !== undefined ? data.btEnabled : false;
                     root.btDevice = data.btDevice !== undefined ? data.btDevice : "Off";
-                    root.themeName = data.theme !== undefined ? data.theme : "great_sage";
+                    if (Date.now() - root.lastThemeChangeTime > 3000) {
+                        if (data.theme !== undefined && data.theme.length > 0) {
+                            root.themeName = data.theme;
+                        }
+                        if (data.wallpaper !== undefined && data.wallpaper.length > 0) {
+                            root.currentWallpaper = data.wallpaper;
+                        }
+                    }
                     root.borderFlow = data.borderFlow !== undefined ? data.borderFlow : false;
                     root.kbLayout = data.kbLayout !== undefined ? data.kbLayout : "fr";
                     root.powerProfile = data.powerProfile !== undefined ? data.powerProfile : "balanced";
                     root.mediaText = data.media !== undefined ? data.media : "";
-                    if (data.wallpaper !== undefined && data.wallpaper.length > 0) {
-                        root.currentWallpaper = data.wallpaper;
-                    }
                 } catch (e) {}
             }
         }

@@ -34,6 +34,11 @@ Variants {
             if (SageState.themeName === "beelzebub") return "ULTIMATE SKILL // BEELZEBUB (LORD OF GLUTTONY)";
             if (SageState.themeName === "hellflare") return "ULTIMATE SKILL // BENIMARU (HELLFLARE)";
             if (SageState.themeName === "magicule") return "UNIQUE SKILL // PREDATOR & GREAT SAGE";
+            if (SageState.themeName === "diablo") return "PRIMORDIAL NOIR // DIABLO (LORD OF DARKNESS)";
+            if (SageState.themeName === "testarossa") return "PRIMORDIAL BLANC // TESTAROSSA (KILLER LORD)";
+            if (SageState.themeName === "carrera") return "PRIMORDIAL JAUNE // CARRERA (MENACE LORD)";
+            if (SageState.themeName === "ultima") return "PRIMORDIAL VIOLET // ULTIMA (PAIN LORD)";
+            if (SageState.themeName === "mustang") return "PRIMORDIAL DEMON // MUSTANG (ONYX FLAME)";
             return "ULTIMATE SKILL // RAPHAEL (LORD OF WISDOM)";
         }
 
@@ -1466,11 +1471,7 @@ Variants {
                                                 anchors.fill: parent
                                                 cursorShape: Qt.PointingHandCursor
                                                 onClicked: {
-                                                    SageState.themeName = topSkillCard.modelData.id;
-                                                    SageState.runCmd([SageState.ctlScript, "set-theme", topSkillCard.modelData.id]);
-                                                    if (topSkillCard.modelData.wall) {
-                                                        SageState.setWallpaper(topSkillCard.modelData.wall);
-                                                    }
+                                                    SageState.setTheme(topSkillCard.modelData.id, topSkillCard.modelData.wall);
                                                 }
                                             }
                                         }
