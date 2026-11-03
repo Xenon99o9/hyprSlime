@@ -580,7 +580,7 @@ Variants {
                                     spacing: 4
                                     Text {
                                         anchors.horizontalCenter: parent.horizontalCenter
-                                        text: "CELL (" + SageState.batStatus.toUpperCase() + ")"
+                                        text: "GPU (" + (SageState.gpuName || "CORE") + ")"
                                         color: SageState.textMuted
                                         font.family: "JetBrainsMono Nerd Font"
                                         font.pixelSize: 10
@@ -588,11 +588,18 @@ Variants {
                                     }
                                     Text {
                                         anchors.horizontalCenter: parent.horizontalCenter
-                                        text: SageState.batPercent + "%"
+                                        text: SageState.gpuUsage + "%"
                                         color: SageState.emeraldOk
                                         font.family: "JetBrainsMono Nerd Font"
                                         font.pixelSize: 24
                                         font.bold: true
+                                    }
+                                    Text {
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        text: SageState.gpuTemp + "°C | " + (SageState.gpuVramText.length > 0 ? SageState.gpuVramText : "VRAM")
+                                        color: SageState.textMuted
+                                        font.family: "JetBrainsMono Nerd Font"
+                                        font.pixelSize: 9
                                     }
                                 }
                             }

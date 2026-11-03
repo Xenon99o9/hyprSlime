@@ -168,20 +168,23 @@ Singleton {
     }
 
     function setVolumeValue(val) {
-        val = Math.max(0, Math.min(100, Math.round(val)));
+        val = Math.max(0, Math.min(150, Math.round(val)));
         volume = val;
         muted = false;
-        runCmd([ctlScript, "set-volume", val.toString()]);
+        lastVolumeChangeTime = Date.now();
+        volumeSyncTimer.restart();
     }
 
     function setBrightnessValue(val) {
         val = Math.max(5, Math.min(100, Math.round(val)));
         brightness = val;
-        runCmd([ctlScript, "set-brightness", val.toString()]);
+        lastBrightnessChangeTime = Date.now();
+        brightnessSyncTimer.restart();
     }
 
     function toggleMute() {
         muted = !muted;
+        lastVolumeChangeTime = Date.now();
         runCmd([ctlScript, "toggle-mute"]);
     }
 
@@ -221,12 +224,18 @@ Singleton {
     property int cpuUsage: 0
     property int ramUsage: 0
     property string ramText: "0G/0G"
+    property int gpuUsage: 0
+    property int gpuTemp: 0
+    property string gpuName: "GPU"
+    property string gpuVramText: ""
     property int batPercent: 100
     property string batStatus: "AC"
     property int volume: 50
     property bool muted: false
     property int brightness: 100
     property bool initialStatusLoaded: false
+    property double lastVolumeChangeTime: 0
+    property double lastBrightnessChangeTime: 0
 
     // ─── On-Screen Display (OSD) Properties ───────────────────────────────────
     property bool osdVisible: false
@@ -243,38 +252,34 @@ Singleton {
     }
 
     function osdVolume(action) {
+        lastVolumeChangeTime = Date.now();
         if (action === "up") {
             muted = false;
             volume = Math.min(150, volume + 5);
             showOsd("volume", volume, false);
+            volumeSyncTimer.restart();
         } else if (action === "down") {
             volume = Math.max(0, volume - 5);
             showOsd("volume", volume, muted);
+            volumeSyncTimer.restart();
         } else if (action === "mute") {
-            muted = !muted;
+            toggleMute();
             showOsd("volume", volume, muted);
         } else if (action === "mic") {
+            toggleMicMute();
             showOsd("mic", 100, !osdMuted);
         }
-        if (osdProc.running) {
-            osdProc.running = false;
-        }
-        osdProc.command = [ctlScript, "osd-vol", action];
-        osdProc.running = true;
     }
 
     function osdBrightness(action) {
+        lastBrightnessChangeTime = Date.now();
         if (action === "up") {
             brightness = Math.min(100, brightness + 5);
         } else {
             brightness = Math.max(5, brightness - 5);
         }
         showOsd("brightness", brightness, false);
-        if (osdProc.running) {
-            osdProc.running = false;
-        }
-        osdProc.command = [ctlScript, "osd-bright", action];
-        osdProc.running = true;
+        brightnessSyncTimer.restart();
     }
 
     property bool wifiEnabled: true
@@ -322,6 +327,15 @@ Singleton {
         const copy = Object.assign({}, monitorActiveWorkspaces);
         copy[monName] = wsId;
         monitorActiveWorkspaces = copy;
+    }
+
+    property var monitorSpecialWorkspaces: ({})
+
+    function setMonitorSpecialWorkspace(monName, specName) {
+        if (!monName) return;
+        const copy = Object.assign({}, monitorSpecialWorkspaces);
+        copy[monName] = specName || "";
+        monitorSpecialWorkspaces = copy;
     }
 
     property var appList: []
@@ -669,6 +683,15 @@ Singleton {
                     if (wsId > 0 && Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
                         root.setMonitorActiveWorkspace(Hyprland.focusedMonitor.name, wsId);
                     }
+                } else if (event.name === "activespecial") {
+                    const specParts = (event.data || "").split(",");
+                    if (specParts.length >= 2) {
+                        const sName = specParts[0].trim();
+                        const mName = specParts[1].trim();
+                        root.setMonitorSpecialWorkspace(mName, sName);
+                    } else {
+                        root.loadMonitors();
+                    }
                 }
             } else if (event.name === "openwindow" || event.name === "closewindow" || event.name === "movewindow") {
                 root.loadSpecialWorkspaces();
@@ -717,6 +740,38 @@ Singleton {
         onTriggered: root.osdVisible = false
     }
 
+    Timer {
+        id: volumeSyncTimer
+        interval: 35
+        repeat: false
+        onTriggered: {
+            if (volSyncProc.running) volSyncProc.running = false;
+            volSyncProc.command = [root.ctlScript, "set-volume", root.volume.toString()];
+            volSyncProc.running = true;
+        }
+    }
+
+    Timer {
+        id: brightnessSyncTimer
+        interval: 35
+        repeat: false
+        onTriggered: {
+            if (brightSyncProc.running) brightSyncProc.running = false;
+            brightSyncProc.command = [root.ctlScript, "set-brightness", root.brightness.toString()];
+            brightSyncProc.running = true;
+        }
+    }
+
+    Process {
+        id: volSyncProc
+        command: ["true"]
+    }
+
+    Process {
+        id: brightSyncProc
+        command: ["true"]
+    }
+
     Process {
         id: osdProc
         command: ["true"]
@@ -725,13 +780,16 @@ Singleton {
             onStreamFinished: {
                 try {
                     const data = JSON.parse(osdCollector.text.trim());
+                    const now = Date.now();
                     if (data.mode === "volume") {
-                        root.volume = data.value;
-                        root.muted = data.muted === true;
-                        root.showOsd("volume", root.volume, root.muted);
+                        if (now - root.lastVolumeChangeTime > 1200) {
+                            root.volume = data.value;
+                            root.muted = data.muted === true;
+                        }
                     } else if (data.mode === "brightness") {
-                        root.brightness = data.value;
-                        root.showOsd("brightness", root.brightness, false);
+                        if (now - root.lastBrightnessChangeTime > 1200) {
+                            root.brightness = data.value;
+                        }
                     } else if (data.mode === "mic") {
                         root.showOsd("mic", data.value, data.muted === true);
                     }
@@ -832,8 +890,9 @@ Singleton {
                     }
                     for (let i = 0; i < parsed.length; ++i) {
                         const m = parsed[i];
-                        if (m && m.name && m.activeWsId) {
-                            root.setMonitorActiveWorkspace(m.name, m.activeWsId);
+                        if (m && m.name) {
+                            if (m.activeWsId) root.setMonitorActiveWorkspace(m.name, m.activeWsId);
+                            root.setMonitorSpecialWorkspace(m.name, m.specialWs || "");
                         }
                     }
                 } catch (e) {
@@ -893,21 +952,32 @@ Singleton {
                     root.cpuUsage = data.cpu !== undefined ? data.cpu : 0;
                     root.ramUsage = data.ram !== undefined ? data.ram : 0;
                     root.ramText = data.ramText !== undefined ? data.ramText : "";
+                    root.gpuUsage = data.gpu !== undefined ? data.gpu : 0;
+                    root.gpuTemp = data.gpuTemp !== undefined ? data.gpuTemp : 0;
+                    root.gpuName = data.gpuName !== undefined && data.gpuName.length > 0 ? data.gpuName : "GPU";
+                    root.gpuVramText = data.gpuVram !== undefined ? data.gpuVram : "";
                     root.batPercent = data.bat !== undefined ? data.bat : 100;
                     root.batStatus = data.batStatus !== undefined ? data.batStatus : "AC";
                     const newVol = data.vol !== undefined ? data.vol : 50;
                     const newMuted = data.muted !== undefined ? data.muted : false;
                     const newBright = data.bright !== undefined ? data.bright : 100;
-                    if (root.initialStatusLoaded) {
-                        if (newVol !== root.volume || newMuted !== root.muted) {
+                    const now = Date.now();
+                    const volAdjusting = (now - root.lastVolumeChangeTime) < 1200;
+                    const brightAdjusting = (now - root.lastBrightnessChangeTime) < 1200;
+
+                    if (!volAdjusting) {
+                        if (root.initialStatusLoaded && (newVol !== root.volume || newMuted !== root.muted)) {
                             root.showOsd("volume", newVol, newMuted);
-                        } else if (newBright !== root.brightness) {
+                        }
+                        root.volume = newVol;
+                        root.muted = newMuted;
+                    }
+                    if (!brightAdjusting) {
+                        if (root.initialStatusLoaded && newBright !== root.brightness) {
                             root.showOsd("brightness", newBright, false);
                         }
+                        root.brightness = newBright;
                     }
-                    root.volume = newVol;
-                    root.muted = newMuted;
-                    root.brightness = newBright;
                     root.initialStatusLoaded = true;
                     root.wifiEnabled = data.wifiEnabled !== undefined ? data.wifiEnabled : false;
                     root.wifiSsid = data.wifiSsid !== undefined ? data.wifiSsid : "Disconnected";

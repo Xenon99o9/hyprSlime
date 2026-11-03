@@ -35,13 +35,26 @@ json_escape() {
 }
 
 get_status_json() {
-    # 1. CPU Usage
+    # 1. CPU Usage (Calculated from /proc/stat delta)
     local cpu_usage=0
-    if [[ -r /proc/loadavg ]]; then
-        local load ncpu
-        read -r load _ < /proc/loadavg
-        ncpu=$(nproc 2>/dev/null || echo 4)
-        cpu_usage=$(awk -v l="$load" -v n="$ncpu" 'BEGIN { v = int((l / n) * 100); if (v > 100) v = 100; print v }')
+    local cpu_stat_file="/tmp/hyprslime-cpustat"
+    if [[ -r /proc/stat ]]; then
+        local _cpu u_cur n_cur s_cur i_cur io_cur irq_cur sirq_cur st_cur _rest
+        read -r _cpu u_cur n_cur s_cur i_cur io_cur irq_cur sirq_cur st_cur _rest < /proc/stat
+        local total_cur=$(( u_cur + n_cur + s_cur + i_cur + io_cur + irq_cur + sirq_cur + st_cur ))
+        local idle_cur=$(( i_cur + io_cur ))
+        if [[ -f "$cpu_stat_file" ]]; then
+            local total_prev idle_prev
+            read -r total_prev idle_prev < "$cpu_stat_file" 2>/dev/null || true
+            local diff_total=$(( total_cur - total_prev ))
+            local diff_idle=$(( idle_cur - idle_prev ))
+            if (( diff_total > 0 )); then
+                cpu_usage=$(( (diff_total - diff_idle) * 100 / diff_total ))
+                (( cpu_usage < 0 )) && cpu_usage=0
+                (( cpu_usage > 100 )) && cpu_usage=100
+            fi
+        fi
+        echo "$total_cur $idle_cur" > "$cpu_stat_file" 2>/dev/null || true
     fi
 
     # 2. RAM Usage
@@ -59,7 +72,31 @@ get_status_json() {
         ' /proc/meminfo)
     fi
 
-    # 3. Battery
+    # 3. GPU Telemetry (NVIDIA / DRM)
+    local gpu_usage=0
+    local gpu_temp=0
+    local gpu_name="GPU"
+    local gpu_vram_text=""
+    if command -v nvidia-smi >/dev/null 2>&1; then
+        local nv_out
+        nv_out=$(nvidia-smi --query-gpu=utilization.gpu,temperature.gpu,memory.used,memory.total,name --format=csv,noheader,nounits 2>/dev/null | head -n 1 || true)
+        if [[ -n "$nv_out" ]]; then
+            local nv_u nv_t nv_mu nv_mt nv_n
+            IFS=',' read -r nv_u nv_t nv_mu nv_mt nv_n <<< "$nv_out"
+            gpu_usage=$(tr -dc '0-9' <<< "$nv_u")
+            gpu_temp=$(tr -dc '0-9' <<< "$nv_t")
+            local gpu_mem_used=$(tr -dc '0-9' <<< "$nv_mu")
+            local gpu_mem_total=$(tr -dc '0-9' <<< "$nv_mt")
+            gpu_name=$(echo "$nv_n" | sed -e 's/^[[:space:]]*//' -e 's/NVIDIA GeForce //g' -e 's/NVIDIA //g')
+            if (( gpu_mem_total > 0 )); then
+                gpu_vram_text=$(awk -v u="$gpu_mem_used" -v t="$gpu_mem_total" 'BEGIN { printf "%.1fG/%.1fG", u/1024, t/1024 }')
+            fi
+        fi
+    elif [[ -r /sys/class/drm/card0/device/gpu_busy_percent ]]; then
+        gpu_usage=$(cat /sys/class/drm/card0/device/gpu_busy_percent 2>/dev/null || echo 0)
+    fi
+
+    # 4. Battery
     local bat_pct=100
     local bat_status="AC"
     for bat in /sys/class/power_supply/BAT*; do
@@ -222,8 +259,9 @@ get_status_json() {
         [[ -n "$cached" && -f "$cached" ]] && current_wall="$cached"
     fi
 
-    printf '{"cpu":%d,"ram":%d,"ramText":"%s","bat":%d,"batStatus":"%s","vol":%d,"muted":%s,"bright":%d,"wifiEnabled":%s,"wifiSsid":"%s","vpnActive":%s,"vpnName":"%s","vpns":%s,"btEnabled":%s,"btDevice":"%s","theme":"%s","borderFlow":%s,"kbLayout":"%s","powerProfile":"%s","media":"%s","wallpaper":"%s"}\n' \
+    printf '{"cpu":%d,"ram":%d,"ramText":"%s","gpu":%d,"gpuTemp":%d,"gpuName":"%s","gpuVram":"%s","bat":%d,"batStatus":"%s","vol":%d,"muted":%s,"bright":%d,"wifiEnabled":%s,"wifiSsid":"%s","vpnActive":%s,"vpnName":"%s","vpns":%s,"btEnabled":%s,"btDevice":"%s","theme":"%s","borderFlow":%s,"kbLayout":"%s","powerProfile":"%s","media":"%s","wallpaper":"%s"}\n' \
         "${cpu_usage:-0}" "${ram_usage:-0}" "$(json_escape "$ram_text")" \
+        "${gpu_usage:-0}" "${gpu_temp:-0}" "$(json_escape "$gpu_name")" "$(json_escape "$gpu_vram_text")" \
         "${bat_pct:-100}" "$(json_escape "$bat_status")" \
         "${vol_pct:-50}" "$vol_muted" "${bright_pct:-100}" \
         "$wifi_enabled" "$(json_escape "$wifi_ssid")" \
@@ -602,6 +640,34 @@ EOF
         fi
         printf '{"mode":"brightness","value":%d,"muted":false}\n' "${bright_pct:-100}"
         ;;
+    set-volume)
+        val="${2:-50}"
+        val=$(tr -dc '0-9' <<< "$val")
+        (( val < 0 )) && val=0
+        (( val > 150 )) && val=150
+        float_val=$(awk -v v="$val" 'BEGIN { printf "%.2f", v / 100 }')
+        wpctl set-mute @DEFAULT_AUDIO_SINK@ 0 >/dev/null 2>&1 || true
+        wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SINK@ "$float_val" >/dev/null 2>&1 || true
+        printf '{"mode":"volume","value":%d,"muted":false}\n' "$val"
+        ;;
+    set-brightness)
+        val="${2:-50}"
+        val=$(tr -dc '0-9' <<< "$val")
+        (( val < 5 )) && val=5
+        (( val > 100 )) && val=100
+        if command -v brightnessctl >/dev/null 2>&1; then
+            brightnessctl s "${val}%" >/dev/null 2>&1 || true
+        fi
+        printf '{"mode":"brightness","value":%d,"muted":false}\n' "$val"
+        ;;
+    toggle-mute)
+        wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle >/dev/null 2>&1 || true
+        wp_out=$(wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null || echo "Volume: 0.50")
+        vol_pct=$(awk '{ for(i=1;i<=NF;i++) if($i ~ /^[0-9.]+$/) print int($i * 100) }' <<< "$wp_out")
+        vol_muted="false"
+        [[ "$wp_out" == *"[MUTED]"* ]] && vol_muted="true"
+        printf '{"mode":"volume","value":%d,"muted":%s}\n' "${vol_pct:-50}" "$vol_muted"
+        ;;
     set-theme)
         theme="${2:-great_sage}"
         custom_wall="${3:-}"
@@ -789,6 +855,7 @@ for m in raw:
         "mirrorOf": m.get("mirrorOf", "none") or "none",
         "focused": bool(m.get("focused", False)),
         "activeWsId": int(m.get("activeWorkspace", {}).get("id", 1) or 1),
+        "specialWs": str(m.get("specialWorkspace", {}).get("name", "") or ""),
         "modes": modes[:16]
     })
 

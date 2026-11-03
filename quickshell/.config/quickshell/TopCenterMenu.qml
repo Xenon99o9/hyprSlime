@@ -997,12 +997,12 @@ Variants {
                                     action: "btop"
                                 },
                                 {
-                                    title: "◈ ENERGY CELL (BATTERY)",
-                                    val: SageState.batPercent,
-                                    sub: "STATE // " + SageState.batStatus.toUpperCase(),
-                                    detail: "Power profile: " + SageState.powerProfile.toUpperCase(),
+                                    title: "◈ GPU ACCELERATOR (" + SageState.gpuName + ")",
+                                    val: SageState.gpuUsage,
+                                    sub: "THERMAL // " + SageState.gpuTemp + "°C",
+                                    detail: "VRAM: " + (SageState.gpuVramText.length > 0 ? SageState.gpuVramText : "Dedicated Pool"),
                                     col: SageState.emeraldOk,
-                                    action: "none"
+                                    action: "btop"
                                 }
                             ]
 

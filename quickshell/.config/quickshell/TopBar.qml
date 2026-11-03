@@ -25,24 +25,25 @@ Variants {
         readonly property bool compactBar: barWindow.width < 1640
         readonly property bool miniBar: barWindow.width < 1380
         readonly property string activeSpecialId: {
-            const list = SageState.specialWorkspaces;
-            for (let i = 0; i < list.length; ++i) {
-                if (list[i].visible === true) {
-                    return list[i].id !== undefined ? list[i].id : "";
-                }
-            }
-            return "";
+            const sName = barWindow.screen ? barWindow.screen.name : "";
+            if (!sName) return "";
+            const raw = (SageState.monitorSpecialWorkspaces && SageState.monitorSpecialWorkspaces[sName])
+                ? SageState.monitorSpecialWorkspaces[sName]
+                : "";
+            if (raw.startsWith("special:")) return raw.substring(8);
+            return raw;
         }
         readonly property string activeSpecialLabel: {
+            if (!barWindow.activeSpecialId) return "";
             const list = SageState.specialWorkspaces;
             for (let i = 0; i < list.length; ++i) {
-                if (list[i].visible === true) {
-                    return list[i].label !== undefined ? list[i].label : "SPECIAL";
+                if (list[i].id === barWindow.activeSpecialId) {
+                    return list[i].label !== undefined ? list[i].label : list[i].id.toUpperCase();
                 }
             }
-            return "";
+            return barWindow.activeSpecialId.toUpperCase();
         }
-        readonly property bool inSpecialView: barWindow.showSpecialLayer || barWindow.activeSpecialLabel.length > 0
+        readonly property bool inSpecialView: barWindow.showSpecialLayer || barWindow.activeSpecialId.length > 0
 
         readonly property var hyprMonitor: {
             if (!Hyprland.monitors || !Hyprland.monitors.values) return null;
@@ -380,7 +381,7 @@ Variants {
                             id: specBadge
                             required property var modelData
                             readonly property bool isRunning: modelData.running === true
-                            readonly property bool isVisibleNow: modelData.visible === true
+                            readonly property bool isVisibleNow: modelData.id === barWindow.activeSpecialId
                             readonly property string codeText: modelData.label !== undefined && modelData.label.length > 0
                                                                ? modelData.label
                                                                : (modelData.short || "SPC")
@@ -763,58 +764,6 @@ Variants {
                                 }
                             }
                         }
-                    }
-                }
-
-                // CPU + RAM Pill (Auto-compacts on smaller screens & hides when collapsed)
-                Rectangle {
-                    visible: !barWindow.rightCollapsed
-                    height: 24
-                    width: sysRow.implicitWidth + (barWindow.compactBar ? 10 : 16)
-                    radius: 4
-                    anchors.verticalCenter: parent.verticalCenter
-                    color: SageState.bgCard
-                    border.width: 1
-                    border.color: Qt.rgba(SageState.primaryAccent.r, SageState.primaryAccent.g, SageState.primaryAccent.b, 0.35)
-
-                    Row {
-                        id: sysRow
-                        anchors.centerIn: parent
-                        spacing: barWindow.compactBar ? 5 : 8
-
-                        Text {
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: (barWindow.compactBar ? "C " : "CPU ") + SageState.cpuUsage + "%"
-                            color: SageState.cpuUsage > 80 ? SageState.crimsonAlert : SageState.primaryAccent
-                            font.family: "JetBrainsMono Nerd Font"
-                            font.pixelSize: barWindow.compactBar ? 10 : 11
-                            font.bold: true
-                        }
-
-                        Text {
-                            visible: !barWindow.miniBar
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: "|"
-                            color: SageState.textMuted
-                            font.family: "JetBrainsMono Nerd Font"
-                            font.pixelSize: 10
-                        }
-
-                        Text {
-                            visible: !barWindow.miniBar
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: (barWindow.compactBar ? "R " : "RAM ") + SageState.ramUsage + "%"
-                            color: SageState.secondaryAccent
-                            font.family: "JetBrainsMono Nerd Font"
-                            font.pixelSize: barWindow.compactBar ? 10 : 11
-                            font.bold: true
-                        }
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: SageState.toggleSpecialWs("sysmon")
                     }
                 }
 

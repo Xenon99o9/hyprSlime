@@ -104,11 +104,14 @@ try:
         if sid:
             running_ws.add(sid)
     mon_out = subprocess.check_output(["hyprctl", "monitors", "-j"], stderr=subprocess.DEVNULL, text=True)
+    monitor_specials = {}
     for m in json.loads(mon_out):
+        mname = str(m.get("name", ""))
         sid = extract_special_id(m.get("specialWorkspace", {}))
         if sid:
-            active_special = sid
-            break
+            monitor_specials[mname] = sid
+            if not active_special:
+                active_special = sid
 except Exception:
     pass
 
@@ -116,6 +119,7 @@ for item in items:
     wid = item.get("id", "")
     item["running"] = wid in running_ws
     item["visible"] = (wid == active_special)
+    item["visibleMonitors"] = [mname for mname, sid in monitor_specials.items() if sid == wid]
 
 print(json.dumps(items))
 EOF
