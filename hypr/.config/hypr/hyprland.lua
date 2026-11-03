@@ -8,6 +8,7 @@ package.path = home .. "/.config/hypr/?.lua;" .. package.path
 
 -- 1. Hardware & System Environment
 require("conf.monitors")
+pcall(require, "workspaces")
 require("conf.hardware")
 require("conf.env")
 local programs = require("conf.programs")

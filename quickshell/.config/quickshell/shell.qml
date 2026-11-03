@@ -10,8 +10,9 @@ ShellRoot {
     CentralDashboard {}
     TopCenterMenu {}
     BottomLauncher {}
-    BottomRightMenu {}
+    RightSideSliders {}
     SageOsd {}
+    TrayPopupMenu {}
 
     // IPC Handler for Keyboard Shortcuts (`quickshell ipc call sage <fn>`)
     IpcHandler {
@@ -66,7 +67,11 @@ ShellRoot {
         }
 
         function toggleCornerMenu() {
-            SageState.toggleCornerMenu();
+            SageState.toggleSideSliders();
+        }
+
+        function toggleSideSliders() {
+            SageState.toggleSideSliders();
         }
 
         function toggleKeybinds() {

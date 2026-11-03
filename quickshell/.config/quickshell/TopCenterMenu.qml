@@ -10,7 +10,7 @@ Variants {
         required property var modelData
         screen: modelData
 
-        visible: SageState.topDropdownOpen
+        visible: SageState.topDropdownOpen && SageState.isActiveScreen(topMenuWindow.modelData)
         color: "transparent"
 
         anchors {
@@ -21,43 +21,13 @@ Variants {
         }
 
         WlrLayershell.layer: WlrLayer.Overlay
-        WlrLayershell.keyboardFocus: SageState.topDropdownOpen ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+        WlrLayershell.keyboardFocus: (SageState.topDropdownOpen && SageState.isActiveScreen(topMenuWindow.modelData)) ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
         exclusionMode: ExclusionMode.Ignore
 
-        // Debounced auto-close using HoverHandler (never loses hover over child buttons!)
-        Timer {
-            id: closeTimer
-            interval: 340
-            running: SageState.topDropdownOpen && !cardHover.hovered && !bridgeHover.hovered
-            repeat: false
-            onTriggered: {
-                if (!cardHover.hovered && !bridgeHover.hovered) {
-                    SageState.topDropdownOpen = false;
-                }
-            }
-        }
-
-        // Click anywhere outside to close immediately
+        // Click anywhere outside the dropdown card to close immediately
         MouseArea {
             anchors.fill: parent
             onClicked: SageState.topDropdownOpen = false
-        }
-
-        // Invisible Hover Bridge over the Top-Center Clock Island (prevents any hover gap)
-        Item {
-            width: 520
-            height: 56
-            anchors {
-                top: parent.top
-                horizontalCenter: parent.horizontalCenter
-            }
-            HoverHandler {
-                id: bridgeHover
-            }
-            MouseArea {
-                anchors.fill: parent
-                onClicked: SageState.topDropdownOpen = false
-            }
         }
 
         readonly property string skillTitle: {
@@ -98,10 +68,6 @@ Variants {
             cornerDiamonds: true
             showMagicCircle: true
             magicCircleAlpha: 0.07
-
-            HoverHandler {
-                id: cardHover
-            }
 
             MouseArea {
                 anchors.fill: parent

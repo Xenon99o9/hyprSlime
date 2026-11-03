@@ -10,7 +10,7 @@ Variants {
         required property var modelData
         screen: modelData
 
-        readonly property bool isOpen: SageState.osdVisible
+        readonly property bool isOpen: SageState.osdVisible && SageState.isActiveScreen(osdWin.modelData)
 
         visible: isOpen || closeAnim.running
         color: "transparent"

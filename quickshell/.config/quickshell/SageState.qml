@@ -17,6 +17,39 @@ Singleton {
 
     property bool launcherOpen: false
     property bool cornerMenuOpen: false
+    property bool sideSlidersOpen: false
+
+    // Custom Caelestia Background App / System Tray Popover State
+    property bool trayMenuOpen: false
+    property var activeTrayItem: null
+    property var activeBgApp: null
+
+    // Active Monitor Tracking (Menus ONLY open on the currently active monitor)
+    property string activeMenuScreen: ""
+    readonly property string focusedMonitorName: {
+        if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
+            return Hyprland.focusedMonitor.name;
+        }
+        if (Quickshell.screens.length > 0) {
+            return Quickshell.screens[0].name;
+        }
+        return "";
+    }
+
+    function lockActiveScreen(preferredName) {
+        if (preferredName && preferredName.length > 0) {
+            activeMenuScreen = preferredName;
+        } else if (focusedMonitorName.length > 0) {
+            activeMenuScreen = focusedMonitorName;
+        }
+    }
+
+    function isActiveScreen(screenObj) {
+        if (!screenObj) return true;
+        if (Quickshell.screens.length <= 1) return true;
+        const target = activeMenuScreen.length > 0 ? activeMenuScreen : focusedMonitorName;
+        return target.length === 0 || screenObj.name === target;
+    }
 
     // Super-tap tracking so Super alone works reliably without misfiring on Super+Key
     property double lastSuperPressTime: 0
@@ -50,63 +83,130 @@ Singleton {
         toggleLauncher();
     }
 
-    function openDashboardTab(tabIndex) {
+    function openDashboardTab(tabIndex, screenName) {
         superComboUsed = true;
+        lockActiveScreen(screenName);
         activeTab = tabIndex;
         dashboardOpen = true;
         topDropdownOpen = false;
         launcherOpen = false;
         cornerMenuOpen = false;
+        trayMenuOpen = false;
         loadSpecialWorkspaces();
         loadWallpapers();
         if (tabIndex === 3) loadMonitors();
         if (tabIndex === 4) scanWifi();
     }
 
-    function toggleDashboard() {
+    function toggleDashboard(screenName) {
         superComboUsed = true;
+        // If the bottom app launcher is open, pressing Super + M closes it as requested!
+        if (launcherOpen) {
+            lastLauncherToggleTime = Date.now();
+            launcherOpen = false;
+            return;
+        }
+        lockActiveScreen(screenName);
         dashboardOpen = !dashboardOpen;
         if (dashboardOpen) {
             topDropdownOpen = false;
             launcherOpen = false;
             cornerMenuOpen = false;
+            trayMenuOpen = false;
             loadSpecialWorkspaces();
             loadWallpapers();
             loadMonitors();
         }
     }
 
-    function toggleTopDropdown() {
+    function toggleTopDropdown(screenName) {
         superComboUsed = true;
+        lockActiveScreen(screenName);
         topDropdownOpen = !topDropdownOpen;
         if (topDropdownOpen) {
             dashboardOpen = false;
             launcherOpen = false;
             cornerMenuOpen = false;
+            trayMenuOpen = false;
             refresh();
         }
     }
 
-    function toggleLauncher() {
+    function toggleLauncher(screenName) {
         lastLauncherToggleTime = Date.now();
+        lockActiveScreen(screenName);
         launcherOpen = !launcherOpen;
         if (launcherOpen) {
             dashboardOpen = false;
             topDropdownOpen = false;
             cornerMenuOpen = false;
+            trayMenuOpen = false;
             loadApps();
         }
     }
 
-    function toggleCornerMenu() {
+    function toggleSideSliders(screenName) {
         superComboUsed = true;
+        lockActiveScreen(screenName);
+        sideSlidersOpen = !sideSlidersOpen;
+        if (sideSlidersOpen) {
+            dashboardOpen = false;
+            topDropdownOpen = false;
+            launcherOpen = false;
+            cornerMenuOpen = false;
+            trayMenuOpen = false;
+            refresh();
+        }
+    }
+
+    function setVolumeValue(val) {
+        val = Math.max(0, Math.min(100, Math.round(val)));
+        volume = val;
+        muted = false;
+        runCmd([ctlScript, "set-volume", val.toString()]);
+    }
+
+    function setBrightnessValue(val) {
+        val = Math.max(5, Math.min(100, Math.round(val)));
+        brightness = val;
+        runCmd([ctlScript, "set-brightness", val.toString()]);
+    }
+
+    function toggleMute() {
+        muted = !muted;
+        runCmd([ctlScript, "toggle-mute"]);
+    }
+
+    function toggleMicMute() {
+        runCmd([ctlScript, "osd-vol", "mic"]);
+    }
+
+    function toggleCornerMenu(screenName) {
+        superComboUsed = true;
+        lockActiveScreen(screenName);
         cornerMenuOpen = !cornerMenuOpen;
         if (cornerMenuOpen) {
             dashboardOpen = false;
             topDropdownOpen = false;
             launcherOpen = false;
+            trayMenuOpen = false;
             refresh();
         }
+    }
+
+    function openTrayPopup(screenName, trayItem, bgApp) {
+        lockActiveScreen(screenName);
+        if (trayMenuOpen && ((trayItem && activeTrayItem === trayItem) || (bgApp && activeBgApp && activeBgApp.id === bgApp.id))) {
+            trayMenuOpen = false;
+            return;
+        }
+        activeTrayItem = trayItem || null;
+        activeBgApp = bgApp || null;
+        trayMenuOpen = true;
+        dashboardOpen = false;
+        topDropdownOpen = false;
+        launcherOpen = false;
+        cornerMenuOpen = false;
     }
 
     // ─── Telemetry Properties ─────────────────────────────────────────────────
@@ -185,6 +285,8 @@ Singleton {
     property bool borderFlow: false
     property bool holographicOpacity: true
     property string kbLayout: "fr"
+    property var activeKbLayouts: ["fr"]
+    property var workspaceMap: ({})
     property string powerProfile: "balanced"
     property string mediaText: ""
     property string clockTime: "00:00:00"
@@ -206,6 +308,7 @@ Singleton {
     property int selectedMonitorIndex: 0
     property var appList: []
     property var runningApps: []
+    property var workspaceIcons: ({})
     readonly property string specialScript: Quickshell.env("HOME") + "/.config/hypr/scripts/special-ws.sh"
     readonly property string ctlScript: Quickshell.env("HOME") + "/.config/hypr/scripts/sage-ctl.sh"
 
@@ -249,9 +352,17 @@ Singleton {
         refreshDelayed.restart();
     }
 
-    function launchApp(execCmd) {
+    function launchApp(execCmd, appName) {
         launcherOpen = false;
-        runCmd(["bash", "-c", "nohup " + execCmd + " >/dev/null 2>&1 &"]);
+        runCmd([ctlScript, "app-launch", execCmd, appName || ""]);
+    }
+
+    function switchNormalWorkspace(wsId) {
+        if (specialToggleProc.running) {
+            specialToggleProc.running = false;
+        }
+        specialToggleProc.command = [specialScript, "switch-normal", wsId.toString()];
+        specialToggleProc.running = true;
     }
 
     // Special Workspaces Actions
@@ -368,6 +479,67 @@ Singleton {
         monitorModProc.running = true;
     }
 
+    function loadWorkspaceMap() {
+        if (!wsMapProc.running) {
+            wsMapProc.running = true;
+        }
+    }
+
+    function applyWorkspaceMapping(mapObj) {
+        workspaceMap = mapObj;
+        runCmd([ctlScript, "workspace-map-apply", JSON.stringify(mapObj)]);
+    }
+
+    function autoDistributeWorkspaces() {
+        const mons = monitorList.filter(m => !m.disabled);
+        let monNames = mons.map(m => m.name);
+        if (monNames.length === 0) monNames = ["eDP-1"];
+        const out = {};
+        const numM = monNames.length;
+        for (let ws = 1; ws <= 10; ++ws) {
+            if (numM === 1) {
+                out[ws.toString()] = monNames[0];
+            } else if (numM === 2) {
+                out[ws.toString()] = ws <= 5 ? monNames[0] : monNames[1];
+            } else {
+                const idx = Math.min(numM - 1, Math.floor((ws - 1) * numM / 10));
+                out[ws.toString()] = monNames[idx];
+            }
+        }
+        applyWorkspaceMapping(out);
+    }
+
+    function loadKbLayouts() {
+        if (!kbListProc.running) {
+            kbListProc.running = true;
+        }
+    }
+
+    function addKbLayout(code) {
+        const list = (activeKbLayouts || []).slice();
+        if (list.indexOf(code) === -1) {
+            list.push(code);
+        }
+        activeKbLayouts = list;
+        kbLayout = code;
+        runCmd([ctlScript, "kb-set", code, JSON.stringify(list)]);
+    }
+
+    function removeKbLayout(code) {
+        let list = (activeKbLayouts || []).filter(k => k !== code);
+        if (list.length === 0) list = ["fr"];
+        activeKbLayouts = list;
+        if (kbLayout === code) {
+            kbLayout = list[0];
+        }
+        runCmd([ctlScript, "kb-set", kbLayout, JSON.stringify(list)]);
+    }
+
+    function selectKbLayout(code) {
+        kbLayout = code;
+        runCmd([ctlScript, "kb-set", code, JSON.stringify(activeKbLayouts)]);
+    }
+
     function scanWifi() {
         if (!wifiScanProc.running) {
             wifiScanning = true;
@@ -419,6 +591,8 @@ Singleton {
         loadWallpapers();
         loadSpecialWorkspaces();
         loadMonitors();
+        loadWorkspaceMap();
+        loadKbLayouts();
         loadApps();
     }
 
@@ -427,8 +601,16 @@ Singleton {
         function onRawEvent(event) {
             if (event.name === "monitoradded" || event.name === "monitorremoved" || event.name === "configreloaded") {
                 root.loadMonitors();
-            } else if (event.name === "openwindow" || event.name === "closewindow" || event.name === "movewindow" || event.name === "activespecial") {
+            } else if (event.name === "activespecial" || event.name === "workspace" || event.name === "workspacev2") {
+                root.loadSpecialWorkspaces();
                 root.loadRunningApps();
+            } else if (event.name === "openwindow" || event.name === "closewindow" || event.name === "movewindow") {
+                root.loadSpecialWorkspaces();
+                root.loadRunningApps();
+            } else if (event.name === "focusedmon" || event.name === "focusedmonv2") {
+                if (!root.dashboardOpen && !root.topDropdownOpen && !root.launcherOpen && !root.cornerMenuOpen && !root.trayMenuOpen) {
+                    root.lockActiveScreen("");
+                }
             }
         }
     }
@@ -536,7 +718,13 @@ Singleton {
             id: runningAppsCollector
             onStreamFinished: {
                 try {
-                    root.runningApps = JSON.parse(runningAppsCollector.text.trim());
+                    const parsed = JSON.parse(runningAppsCollector.text.trim());
+                    if (Array.isArray(parsed)) {
+                        root.runningApps = parsed;
+                    } else if (parsed && typeof parsed === "object") {
+                        root.runningApps = parsed.bgApps || [];
+                        root.workspaceIcons = parsed.wsIcons || {};
+                    }
                 } catch (e) {
                     root.runningApps = [];
                 }
@@ -566,7 +754,40 @@ Singleton {
     Process {
         id: monitorModProc
         command: ["true"]
-        onExited: root.loadMonitors()
+        onExited: {
+            root.loadMonitors();
+            root.loadWorkspaceMap();
+        }
+    }
+
+    Process {
+        id: wsMapProc
+        command: [root.ctlScript, "workspace-map-get"]
+        stdout: StdioCollector {
+            id: wsMapCollector
+            onStreamFinished: {
+                try {
+                    root.workspaceMap = JSON.parse(wsMapCollector.text.trim());
+                } catch (e) {}
+            }
+        }
+    }
+
+    Process {
+        id: kbListProc
+        command: [root.ctlScript, "kb-get"]
+        stdout: StdioCollector {
+            id: kbListCollector
+            onStreamFinished: {
+                try {
+                    const data = JSON.parse(kbListCollector.text.trim());
+                    if (data && data.active) {
+                        root.activeKbLayouts = data.active;
+                        root.kbLayout = data.current || data.active[0] || "fr";
+                    }
+                } catch (e) {}
+            }
+        }
     }
 
     Process {

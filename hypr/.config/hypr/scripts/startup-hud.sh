@@ -39,9 +39,9 @@ fi
 
 # 4. Start Great Sage Top Bar, Keybinds Sheet & Control Center (Quickshell)
 if command -v quickshell >/dev/null 2>&1; then
-    quickshell &
+    hyprctl dispatch 'hl.dsp.exec_cmd("quickshell")' >/dev/null 2>&1 || nohup quickshell </dev/null >/dev/null 2>&1 &
 elif command -v qs >/dev/null 2>&1; then
-    qs &
+    hyprctl dispatch 'hl.dsp.exec_cmd("qs")' >/dev/null 2>&1 || nohup qs </dev/null >/dev/null 2>&1 &
 fi
 
 # 5. Idle Daemon

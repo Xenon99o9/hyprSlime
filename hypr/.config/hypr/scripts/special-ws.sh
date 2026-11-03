@@ -304,4 +304,53 @@ EOF
     regen)
         regenerate_configs
         ;;
+
+    switch-normal)
+        target_ws="${2:-1}"
+        python3 - "$target_ws" << 'EOF'
+import json, subprocess, sys
+
+target_ws = sys.argv[1]
+
+def extract_special_id(ws_obj):
+    if not isinstance(ws_obj, dict):
+        return ""
+    wname = str(ws_obj.get("name", ""))
+    wtype = str(ws_obj.get("type", ""))
+    if wname.startswith("special:"):
+        return wname.split("special:", 1)[1]
+    if wtype == "special" and wname:
+        return wname
+    return ""
+
+try:
+    mon_out = subprocess.check_output(["hyprctl", "monitors", "-j"], stderr=subprocess.DEVNULL, text=True)
+    monitors = json.loads(mon_out)
+    for m in monitors:
+        if m.get("focused") or len(monitors) == 1:
+            sid = extract_special_id(m.get("specialWorkspace", {}))
+            if sid:
+                res = subprocess.run(
+                    ["hyprctl", "dispatch", f'hl.dsp.workspace.toggle_special("{sid}")'],
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+                )
+                if res.returncode != 0 or "error:" in res.stdout:
+                    subprocess.run(
+                        ["hyprctl", "dispatch", "togglespecialworkspace", sid],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                    )
+except Exception:
+    pass
+
+res = subprocess.run(
+    ["hyprctl", "dispatch", f"hl.dsp.focus({{ workspace = {target_ws} }})"],
+    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+)
+if res.returncode != 0 or "error:" in res.stdout:
+    subprocess.run(
+        ["hyprctl", "dispatch", "workspace", str(target_ws)],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+    )
+EOF
+        ;;
 esac

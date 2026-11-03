@@ -22,13 +22,5 @@
     "bind": "SUPER + D",
     "cmd": "discord",
     "class": "^(discord|vesktop|WebCord)$"
-  },
-  {
-    "id": "browser",
-    "label": "WEB",
-    "short": "WEB",
-    "bind": "SUPER + B",
-    "cmd": "brave",
-    "class": "^(brave-browser|Brave-browser|firefox)$"
   }
 ]

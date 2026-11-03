@@ -306,7 +306,98 @@ case "${1:-status}" in
         ;;
     app-list)
         python3 - << 'EOF'
-import glob, json, os, re
+import glob, json, os, re, subprocess
+
+ICON_DIRS = [
+    "/usr/share/icons/hicolor/256x256/apps",
+    "/usr/share/icons/hicolor/128x128/apps",
+    "/usr/share/icons/hicolor/64x64/apps",
+    "/usr/share/icons/hicolor/48x48/apps",
+    "/usr/share/icons/hicolor/scalable/apps",
+    "/usr/share/pixmaps",
+    "/usr/share/icons/Papirus/64x64/apps",
+    "/usr/share/icons/Adwaita/scalable/apps",
+]
+
+ICON_ALIASES = {
+    "discord": ["discord", "vesktop", "com.discordapp.Discord"],
+    "vesktop": ["vesktop", "discord"],
+    "spotify": ["spotify", "spotify-client", "com.spotify.Client"],
+    "brave": ["brave-desktop", "brave", "brave-browser"],
+    "brave-browser": ["brave-desktop", "brave"],
+    "kitty": ["kitty"],
+    "btop": ["btop"],
+    "thunar": ["org.xfce.thunar", "thunar", "system-file-manager"],
+    "code": ["visual-studio-code", "code", "com.visualstudio.code"],
+    "antigravity": ["antigravity", "code", "visual-studio-code"],
+    "steam": ["steam"],
+    "telegram": ["telegram", "org.telegram.desktop"],
+    "vlc": ["vlc"],
+    "obs": ["com.obsproject.Studio", "obs"],
+}
+
+def resolve_icon(icon_name, app_name, exec_cmd):
+    if not icon_name:
+        icon_name = app_name.lower()
+    icon_name = icon_name.strip()
+    if os.path.isabs(icon_name) and os.path.isfile(icon_name):
+        return icon_name
+
+    base = os.path.splitext(icon_name)[0]
+    cmd_bin = os.path.basename(exec_cmd.split()[0]).lower() if exec_cmd else ""
+    candidates = [base, base.lower()]
+    for k in (base.lower(), cmd_bin, app_name.lower()):
+        if k in ICON_ALIASES:
+            candidates.extend(ICON_ALIASES[k])
+    if cmd_bin:
+        candidates.append(cmd_bin)
+
+    for c in candidates:
+        if not c:
+            continue
+        for d in ICON_DIRS:
+            for ext in (".png", ".svg", ".xpm"):
+                p = os.path.join(d, c + ext)
+                if os.path.isfile(p):
+                    return p
+    return ""
+
+usage_path = os.path.expanduser("~/.cache/hyprslime-app-usage.json")
+try:
+    with open(usage_path, "r", encoding="utf-8") as f:
+        usage_map = json.load(f)
+except Exception:
+    usage_map = {}
+
+# Default priority scores for popular daily-driver apps so the list is immediately smart
+DEFAULT_PRIORITY = {
+    "brave": 30,
+    "firefox": 28,
+    "discord": 27,
+    "vesktop": 27,
+    "spotify": 26,
+    "kitty": 25,
+    "antigravity": 24,
+    "code": 23,
+    "thunar": 22,
+    "steam": 20,
+    "btop": 18,
+    "pavucontrol": 16,
+    "obs": 15,
+    "vlc": 14,
+    "nwg-displays": 12,
+}
+
+# Boost currently open/running apps
+running_bins = set()
+try:
+    out = subprocess.check_output(["hyprctl", "clients", "-j"], text=True, stderr=subprocess.DEVNULL)
+    for c in json.loads(out):
+        cls = (c.get("class") or c.get("initialClass") or "").lower().strip()
+        if cls:
+            running_bins.add(cls)
+except Exception:
+    pass
 
 apps = []
 seen = set()
@@ -315,12 +406,14 @@ for d in dirs:
     for path in sorted(glob.glob(os.path.join(d, "*.desktop"))):
         try:
             with open(path, "r", encoding="utf-8", errors="ignore") as f:
-                content = f.read()
+                raw_content = f.read()
+            content = raw_content.split("\n[Desktop Action")[0]
             if "NoDisplay=true" in content or "Hidden=true" in content:
                 continue
             name_m = re.search(r"^Name=(.+)$", content, re.M)
             exec_m = re.search(r"^Exec=(.+)$", content, re.M)
             desc_m = re.search(r"^Comment=(.+)$", content, re.M)
+            icon_m = re.search(r"^Icon=(.+)$", content, re.M)
             if not name_m or not exec_m:
                 continue
             name = name_m.group(1).strip()
@@ -328,13 +421,59 @@ for d in dirs:
                 continue
             seen.add(name.lower())
             cmd = re.sub(r"\s+%[fFuUdDnNickvm]", "", exec_m.group(1).strip())
+            cmd = re.sub(r"\s+--url\s*--\s*$", "", cmd).strip()
             desc = desc_m.group(1).strip() if desc_m else "Application"
-            apps.append({"name": name, "exec": cmd, "desc": desc})
+            raw_icon = icon_m.group(1).strip() if icon_m else ""
+            icon_path = resolve_icon(raw_icon, name, cmd)
+
+            cmd_bin = os.path.basename(cmd.split()[0]).lower() if cmd else ""
+            user_launches = int(usage_map.get(name.lower(), 0)) + int(usage_map.get(cmd_bin, 0))
+            base_score = 0
+            for k, v in DEFAULT_PRIORITY.items():
+                if k in name.lower() or k == cmd_bin:
+                    base_score = max(base_score, v)
+            if any(rb in name.lower() or rb == cmd_bin for rb in running_bins):
+                base_score += 15
+            total_score = user_launches * 25 + base_score
+
+            apps.append({
+                "name": name,
+                "exec": cmd,
+                "desc": desc,
+                "icon": icon_path,
+                "score": total_score,
+                "frequent": total_score >= 20
+            })
         except Exception:
             pass
 
-apps.sort(key=lambda x: x["name"].lower())
+apps.sort(key=lambda x: (-x["score"], x["name"].lower()))
 print(json.dumps(apps[:120]))
+EOF
+        ;;
+    app-launch)
+        exec_cmd="${2:-}"
+        app_name="${3:-}"
+        python3 - "$exec_cmd" "$app_name" << 'EOF'
+import json, os, subprocess, sys
+
+exec_cmd, app_name = sys.argv[1], sys.argv[2]
+usage_path = os.path.expanduser("~/.cache/hyprslime-app-usage.json")
+try:
+    with open(usage_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+except Exception:
+    data = {}
+
+key = (app_name or os.path.basename(exec_cmd.split()[0] if exec_cmd else "")).lower().strip()
+if key:
+    data[key] = int(data.get(key, 0)) + 1
+    os.makedirs(os.path.dirname(usage_path), exist_ok=True)
+    with open(usage_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+if exec_cmd:
+    subprocess.Popen(["bash", "-c", f"nohup {exec_cmd} >/dev/null 2>&1 &"], start_new_session=True)
 EOF
         ;;
     wallpaper-list)
@@ -754,6 +893,191 @@ if raw:
 subprocess.run(["/home/xenon99o9/.config/hypr/scripts/sage-ctl.sh", "monitor-apply", json.dumps(payload)])
 EOF
         ;;
+    workspace-map-get)
+        python3 - << 'EOF'
+import json, os, re, subprocess
+
+ws_conf = os.path.expanduser("~/.config/hypr/workspaces.conf")
+mapping = {}
+
+if os.path.isfile(ws_conf):
+    try:
+        with open(ws_conf, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("workspace"):
+                    m = re.match(r"^workspace\s*=\s*(\d+)\s*,\s*monitor:([^\s,]+)", line)
+                    if m:
+                        mapping[m.group(1)] = m.group(2)
+    except Exception:
+        pass
+
+try:
+    raw_m = json.loads(subprocess.check_output(["hyprctl", "monitors", "all", "-j"], text=True, stderr=subprocess.DEVNULL))
+    mon_names = [m.get("name") for m in raw_m if m.get("name") and not m.get("disabled")]
+except Exception:
+    mon_names = []
+if not mon_names:
+    mon_names = ["eDP-1"]
+
+num_m = len(mon_names)
+for ws in range(1, 11):
+    ws_str = str(ws)
+    if ws_str not in mapping or mapping[ws_str] not in mon_names:
+        if num_m == 1:
+            mapping[ws_str] = mon_names[0]
+        elif num_m == 2:
+            mapping[ws_str] = mon_names[0] if ws <= 5 else mon_names[1]
+        else:
+            idx = min(num_m - 1, (ws - 1) * num_m // 10)
+            mapping[ws_str] = mon_names[idx]
+
+print(json.dumps(mapping))
+EOF
+        ;;
+    workspace-map-apply)
+        payload="${2:-{}}"
+        python3 - "$payload" << 'EOF'
+import json, os, subprocess, sys
+
+payload_str = sys.argv[1] if len(sys.argv) > 1 else "{}"
+try:
+    mapping = json.loads(payload_str)
+except Exception:
+    mapping = {}
+
+conf_dir = os.path.expanduser("~/.config/hypr")
+ws_conf = os.path.join(conf_dir, "workspaces.conf")
+ws_lua = os.path.join(conf_dir, "workspaces.lua")
+ws_conf_alt = os.path.join(conf_dir, "conf", "workspaces.conf")
+ws_lua_alt = os.path.join(conf_dir, "conf", "workspaces.lua")
+
+conf_lines = [
+    "# ══════════════════════════════════════════════════════════════════════════════",
+    "#  HYPRSLIME — Workspace to Monitor Mapping (workspaces.conf)",
+    "# ══════════════════════════════════════════════════════════════════════════════",
+    ""
+]
+
+lua_lines = [
+    "-- ══════════════════════════════════════════════════════════════════════════════",
+    "--  HYPRSLIME — Workspace to Monitor Mapping (workspaces.lua)",
+    "-- ══════════════════════════════════════════════════════════════════════════════",
+    ""
+]
+
+seen_mon_default = set()
+for ws in range(1, 11):
+    ws_str = str(ws)
+    mon = mapping.get(ws_str, "eDP-1")
+    is_def = False
+    if mon not in seen_mon_default:
+        is_def = True
+        seen_mon_default.add(mon)
+    
+    def_str = ", default:true" if is_def else ""
+    conf_lines.append(f"workspace = {ws}, monitor:{mon}{def_str}")
+    
+    lua_lines.append("hl.workspace_rule({")
+    lua_lines.append(f'    workspace = "{ws}",')
+    lua_lines.append(f'    monitor = "{mon}"' + (",\n    default = true" if is_def else ""))
+    lua_lines.append("})")
+    
+    subprocess.run(["hyprctl", "keyword", "workspace", f"{ws},monitor:{mon}{def_str}"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+for path in [ws_conf, ws_conf_alt]:
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("\n".join(conf_lines) + "\n")
+    except Exception:
+        pass
+
+for path in [ws_lua, ws_lua_alt]:
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lua_lines) + "\n")
+    except Exception:
+        pass
+
+subprocess.run(["hyprctl", "reload"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+print(json.dumps({"status": "ok", "applied": len(mapping)}))
+EOF
+        ;;
+    kb-get)
+        python3 - << 'EOF'
+import json, os, re
+
+kb_cache = os.path.expanduser("~/.config/hypr/conf/keyboards.json")
+input_conf = os.path.expanduser("~/.config/hypr/conf/input.conf")
+
+data = None
+if os.path.isfile(kb_cache):
+    try:
+        with open(kb_cache, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        pass
+
+if not data or not isinstance(data.get("active"), list) or len(data.get("active")) == 0:
+    base_kb = "fr"
+    if os.path.isfile(input_conf):
+        try:
+            with open(input_conf, "r", encoding="utf-8") as f:
+                for line in f:
+                    m = re.match(r"^\s*kb_layout\s*=\s*([^,\s]+)", line)
+                    if m:
+                        base_kb = m.group(1).strip()
+                        break
+        except Exception:
+            pass
+    data = {"current": base_kb, "active": [base_kb]}
+
+print(json.dumps(data))
+EOF
+        ;;
+    kb-set)
+        curr="${2:-fr}"
+        active_json="${3:-[]}"
+        python3 - "$curr" "$active_json" << 'EOF'
+import json, os, subprocess, sys
+
+curr = sys.argv[1]
+try:
+    active_list = json.loads(sys.argv[2])
+except Exception:
+    active_list = [curr]
+
+if not active_list:
+    active_list = [curr]
+if curr not in active_list:
+    active_list.insert(0, curr)
+
+# Build comma separated layout starting with curr
+ordered = [curr] + [k for k in active_list if k != curr]
+csv_layout = ",".join(ordered)
+
+conf_dir = os.path.expanduser("~/.config/hypr/conf")
+os.makedirs(conf_dir, exist_ok=True)
+
+kb_cache = os.path.join(conf_dir, "keyboards.json")
+with open(kb_cache, "w", encoding="utf-8") as f:
+    json.dump({"current": curr, "active": active_list}, f, indent=2)
+
+input_conf = os.path.join(conf_dir, "input.conf")
+input_lua = os.path.join(conf_dir, "input.lua")
+
+if os.path.isfile(input_conf):
+    subprocess.run(["sed", "-i", f"s/^[[:space:]]*kb_layout = .*/    kb_layout = {csv_layout}/", input_conf])
+if os.path.isfile(input_lua):
+    subprocess.run(["sed", "-i", f's/^[[:space:]]*kb_layout[[:space:]]*= .*/        kb_layout  = "{csv_layout}",/', input_lua])
+
+subprocess.run(["hyprctl", "keyword", "input:kb_layout", csv_layout], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+subprocess.run(["hyprctl", "reload"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+print(json.dumps({"current": curr, "active": active_list, "csv": csv_layout}))
+EOF
+        ;;
     running-apps)
         python3 - << 'EOF'
 import glob, json, os, subprocess
@@ -833,6 +1157,51 @@ BG_DAEMONS = [
 ]
 BG_KEYS = {k[0] for k in BG_DAEMONS}
 
+# Map normal workspaces (1..10) to a Tensura/Slime emblem category based on open windows
+def classify_app_emblem(key, title):
+    combined = f"{key} {title.lower()}"
+    if any(w in combined for w in ("antigravity", "code", "vscodium", "nvim", "neovim", "jetbrains", "zed", "cursor", "idea")):
+        return "code"
+    if any(w in combined for w in ("brave", "firefox", "chromium", "chrome", "zen", "librewolf", "vivaldi")):
+        return "browser"
+    if any(w in combined for w in ("discord", "vesktop", "telegram", "signal", "slack", "element")):
+        return "chat"
+    if any(w in combined for w in ("spotify", "vlc", "mpv", "obs", "pavucontrol", "audacity", "gimp", "blender")):
+        return "media"
+    if any(w in combined for w in ("steam", "lutris", "heroic", "minecraft", "prism", "gamescope")):
+        return "game"
+    if any(w in combined for w in ("thunar", "nautilus", "dolphin", "nemo", "pcmanfm", "files")):
+        return "files"
+    if any(w in combined for w in ("kitty", "alacritty", "wezterm", "foot", "konsole", "terminal", "btop")):
+        return "terminal"
+    return "slime"
+
+CATEGORY_PRIORITY = {
+    "code": 8,
+    "game": 7,
+    "browser": 6,
+    "media": 5,
+    "chat": 4,
+    "files": 3,
+    "terminal": 2,
+    "slime": 1,
+}
+
+ws_icons = {}
+for c in clients:
+    cls = (c.get("class") or c.get("initialClass") or "").strip()
+    if not cls:
+        continue
+    ws_obj = c.get("workspace", {}) or {}
+    ws_id = str(ws_obj.get("id", ""))
+    ws_name = str(ws_obj.get("name", ""))
+    if ws_name.startswith("special:") or not ws_id.isdigit():
+        continue
+    cat = classify_app_emblem(cls.lower(), str(c.get("title") or ""))
+    prev = ws_icons.get(ws_id, "")
+    if not prev or CATEGORY_PRIORITY.get(cat, 0) > CATEGORY_PRIORITY.get(prev, 0):
+        ws_icons[ws_id] = cat
+
 # 1. Only include windows that are hidden in a special workspace OR belong to background/tray apps
 for c in clients:
     cls = (c.get("class") or c.get("initialClass") or "").strip()
@@ -887,7 +1256,7 @@ for proc_name, label, spec_id in BG_DAEMONS:
             "floating": False
         })
 
-print(json.dumps(apps[:10]))
+print(json.dumps({"bgApps": apps[:10], "wsIcons": ws_icons}))
 EOF
         ;;
     focus-app)
@@ -918,5 +1287,11 @@ EOF
         mkdir -p "$(dirname "$POWER_CACHE")"
         echo "$prof" > "$POWER_CACHE"
         command -v powerprofilesctl >/dev/null 2>&1 && powerprofilesctl set "$prof" >/dev/null 2>&1 || true
+        ;;
+    kill-bg-app)
+        app_id="${2:-}"
+        if [[ -n "$app_id" ]]; then
+            pkill -i "$app_id" >/dev/null 2>&1 || true
+        fi
         ;;
 esac

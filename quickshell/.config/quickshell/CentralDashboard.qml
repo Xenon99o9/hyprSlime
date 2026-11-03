@@ -11,7 +11,7 @@ Variants {
         required property var modelData
         screen: modelData
 
-        visible: SageState.dashboardOpen
+        visible: SageState.dashboardOpen && SageState.isActiveScreen(dashWindow.modelData)
         color: "transparent"
 
         anchors {
@@ -22,8 +22,32 @@ Variants {
         }
 
         WlrLayershell.layer: WlrLayer.Overlay
-        WlrLayershell.keyboardFocus: SageState.dashboardOpen ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+        WlrLayershell.keyboardFocus: (SageState.dashboardOpen && SageState.isActiveScreen(dashWindow.modelData)) ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
         exclusionMode: ExclusionMode.Ignore
+
+        property bool addKbModalOpen: false
+
+        readonly property var allKnownLayouts: [
+            { code: "fr", name: "Français (AZERTY Standard)", tag: "FR" },
+            { code: "us", name: "English (US QWERTY Standard)", tag: "US" },
+            { code: "gb", name: "English (UK QWERTY)", tag: "UK" },
+            { code: "de", name: "Deutsch (QWERTZ Standard)", tag: "DE" },
+            { code: "es", name: "Español (QWERTY España)", tag: "ES" },
+            { code: "it", name: "Italiano (QWERTY Italia)", tag: "IT" },
+            { code: "be", name: "Belge (AZERTY Belgique)", tag: "BE" },
+            { code: "ch", name: "Suisse Romand (QWERTZ)", tag: "CH" },
+            { code: "ca", name: "Canadien Français", tag: "CA" },
+            { code: "pt", name: "Português (Portugal)", tag: "PT" },
+            { code: "ru", name: "Русский (Russian)", tag: "RU" },
+            { code: "jp", name: "日本語 (Japanese)", tag: "JP" }
+        ]
+
+        function getKbInfo(code) {
+            for (let i = 0; i < dashWindow.allKnownLayouts.length; ++i) {
+                if (dashWindow.allKnownLayouts[i].code === code) return dashWindow.allKnownLayouts[i];
+            }
+            return { code: code, name: code.toUpperCase() + " Layout", tag: code.slice(0, 3).toUpperCase() };
+        }
 
         readonly property var currentMonitor: {
             if (SageState.monitorList.length === 0) {
@@ -1593,27 +1617,58 @@ Variants {
                                 width: 402
                                 spacing: 6
 
-                                Text {
-                                    text: "◈ KEYBOARD LAYOUT SELECTION LIST"
-                                    color: SageState.secondaryAccent
-                                    font.family: "JetBrainsMono Nerd Font"
-                                    font.pixelSize: 11
-                                    font.bold: true
+                                Item {
+                                    width: 402
+                                    height: 24
+
+                                    Text {
+                                        anchors.left: parent.left
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: "◈ CONFIGURED KEYBOARD LAYOUTS"
+                                        color: SageState.secondaryAccent
+                                        font.family: "JetBrainsMono Nerd Font"
+                                        font.pixelSize: 11
+                                        font.bold: true
+                                    }
+
+                                    Rectangle {
+                                        anchors.right: parent.right
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: 130
+                                        height: 22
+                                        radius: 4
+                                        color: addKbMouse.containsMouse ? SageState.secondaryAccent : SageState.bgVoid
+                                        border.width: 1
+                                        border.color: SageState.secondaryAccent
+
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: dashWindow.addKbModalOpen ? "▲ CLOSE" : "＋ ADD KB LAYOUT"
+                                            color: addKbMouse.containsMouse ? "#050911" : SageState.secondaryAccent
+                                            font.family: "JetBrainsMono Nerd Font"
+                                            font.pixelSize: 9
+                                            font.bold: true
+                                        }
+
+                                        MouseArea {
+                                            id: addKbMouse
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: dashWindow.addKbModalOpen = !dashWindow.addKbModalOpen
+                                        }
+                                    }
                                 }
 
+                                // 1. Active Configured Layouts List
                                 Repeater {
-                                    model: [
-                                        { code: "fr", name: "Français (AZERTY Standard)", tag: "FR" },
-                                        { code: "us", name: "English (US QWERTY Standard)", tag: "US" },
-                                        { code: "fr,us", name: "Français + English (Alt+Shift Switch)", tag: "FR/US" },
-                                        { code: "be", name: "Belge (AZERTY Belgique)", tag: "BE" },
-                                        { code: "ch", name: "Suisse Romand (QWERTZ Suisse)", tag: "CH" }
-                                    ]
+                                    model: SageState.activeKbLayouts
 
                                     Rectangle {
                                         id: kbRowItem
-                                        required property var modelData
-                                        readonly property bool isSelected: SageState.kbLayout === modelData.code
+                                        required property string modelData
+                                        readonly property var kbInfo: dashWindow.getKbInfo(modelData)
+                                        readonly property bool isSelected: SageState.kbLayout === modelData
 
                                         width: 402
                                         height: 36
@@ -1625,21 +1680,21 @@ Variants {
                                         border.color: isSelected ? SageState.secondaryAccent : SageState.primaryAccent
 
                                         Row {
-                                            x: 12
+                                            x: 10
                                             y: 6
-                                            width: 378
+                                            width: 382
                                             height: 24
-                                            spacing: 10
+                                            spacing: 8
 
                                             Rectangle {
-                                                width: 48
+                                                width: 42
                                                 height: 22
                                                 anchors.verticalCenter: parent.verticalCenter
                                                 radius: 3
                                                 color: kbRowItem.isSelected ? SageState.secondaryAccent : SageState.bgCard
                                                 Text {
                                                     anchors.centerIn: parent
-                                                    text: kbRowItem.modelData.tag
+                                                    text: kbRowItem.kbInfo.tag
                                                     color: kbRowItem.isSelected ? "#050911" : SageState.secondaryAccent
                                                     font.family: "JetBrainsMono Nerd Font"
                                                     font.pixelSize: 9
@@ -1648,9 +1703,9 @@ Variants {
                                             }
 
                                             Text {
-                                                width: 240
+                                                width: 220
                                                 anchors.verticalCenter: parent.verticalCenter
-                                                text: kbRowItem.modelData.name
+                                                text: kbRowItem.kbInfo.name
                                                 color: SageState.textPrimary
                                                 font.family: "JetBrainsMono Nerd Font"
                                                 font.pixelSize: 10
@@ -1659,23 +1714,135 @@ Variants {
                                             }
 
                                             Text {
-                                                width: 70
+                                                width: 60
                                                 anchors.verticalCenter: parent.verticalCenter
                                                 horizontalAlignment: Text.AlignRight
-                                                text: kbRowItem.isSelected ? "● ACTIVE" : "CHOOSE ▸"
+                                                text: kbRowItem.isSelected ? "● ACTIVE" : "SWITCH ▸"
                                                 color: kbRowItem.isSelected ? SageState.emeraldOk : SageState.primaryAccent
                                                 font.family: "JetBrainsMono Nerd Font"
                                                 font.pixelSize: 9
                                                 font.bold: true
+                                            }
+
+                                            // Remove button (only if more than 1 layout configured)
+                                            Rectangle {
+                                                visible: SageState.activeKbLayouts.length > 1
+                                                width: 20
+                                                height: 20
+                                                radius: 3
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                color: remKbMouse.containsMouse ? SageState.crimsonAlert : "transparent"
+                                                border.width: 1
+                                                border.color: remKbMouse.containsMouse ? SageState.crimsonAlert : Qt.rgba(SageState.crimsonAlert.r, SageState.crimsonAlert.g, SageState.crimsonAlert.b, 0.4)
+
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: "✕"
+                                                    color: remKbMouse.containsMouse ? "#050911" : SageState.crimsonAlert
+                                                    font.family: "JetBrainsMono Nerd Font"
+                                                    font.pixelSize: 9
+                                                    font.bold: true
+                                                }
+
+                                                MouseArea {
+                                                    id: remKbMouse
+                                                    anchors.fill: parent
+                                                    hoverEnabled: true
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: SageState.removeKbLayout(kbRowItem.modelData)
+                                                }
                                             }
                                         }
 
                                         MouseArea {
                                             anchors.fill: parent
                                             cursorShape: Qt.PointingHandCursor
-                                            onClicked: {
-                                                SageState.kbLayout = kbRowItem.modelData.code;
-                                                SageState.runCmd([SageState.ctlScript, "set-kb", kbRowItem.modelData.code]);
+                                            onClicked: SageState.selectKbLayout(kbRowItem.modelData)
+                                        }
+                                    }
+                                }
+
+                                // 2. Picker Modal when "＋ ADD KB LAYOUT" is open
+                                Rectangle {
+                                    visible: dashWindow.addKbModalOpen
+                                    width: 402
+                                    height: 160
+                                    radius: 6
+                                    color: SageState.bgVoid
+                                    border.width: 1.5
+                                    border.color: SageState.secondaryAccent
+
+                                    Flickable {
+                                        anchors.fill: parent
+                                        anchors.margins: 6
+                                        contentHeight: pickerCol.implicitHeight
+                                        clip: true
+
+                                        Column {
+                                            id: pickerCol
+                                            width: 390
+                                            spacing: 4
+
+                                            Repeater {
+                                                model: dashWindow.allKnownLayouts
+
+                                                Rectangle {
+                                                    id: pickItem
+                                                    required property var modelData
+                                                    readonly property bool alreadyAdded: SageState.activeKbLayouts.indexOf(modelData.code) !== -1
+                                                    visible: !alreadyAdded
+                                                    width: 390
+                                                    height: alreadyAdded ? 0 : 28
+                                                    radius: 4
+                                                    color: pickMouse.containsMouse ? SageState.bgCardHover : SageState.bgCard
+                                                    border.width: 1
+                                                    border.color: pickMouse.containsMouse ? SageState.secondaryAccent : SageState.primaryAccent
+
+                                                    Row {
+                                                        x: 8
+                                                        y: 4
+                                                        width: 374
+                                                        height: 20
+                                                        spacing: 8
+
+                                                        Text {
+                                                            text: pickItem.modelData.tag
+                                                            color: SageState.secondaryAccent
+                                                            font.family: "JetBrainsMono Nerd Font"
+                                                            font.pixelSize: 9
+                                                            font.bold: true
+                                                        }
+
+                                                        Text {
+                                                            width: 280
+                                                            text: pickItem.modelData.name
+                                                            color: SageState.textPrimary
+                                                            font.family: "JetBrainsMono Nerd Font"
+                                                            font.pixelSize: 10
+                                                            elide: Text.ElideRight
+                                                        }
+
+                                                        Text {
+                                                            anchors.right: parent.right
+                                                            text: "＋ ADD"
+                                                            color: SageState.emeraldOk
+                                                            font.family: "JetBrainsMono Nerd Font"
+                                                            font.pixelSize: 9
+                                                            font.bold: true
+                                                        }
+                                                    }
+
+                                                    MouseArea {
+                                                        id: pickMouse
+                                                        anchors.fill: parent
+                                                        hoverEnabled: true
+                                                        cursorShape: Qt.PointingHandCursor
+                                                        onClicked: {
+                                                            SageState.addKbLayout(pickItem.modelData.code);
+                                                            dashWindow.addKbModalOpen = false;
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -1941,6 +2108,136 @@ Variants {
                                                     }
                                                     if (rawX !== monBox.modelData.x || rawY !== monBox.modelData.y) {
                                                         dashWindow.updateMonitorPos(monBox.index, rawX, rawY);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Workspace to Display Mapping Matrix (Workspaces 1 - 10)
+                            Column {
+                                width: 544
+                                spacing: 6
+
+                                Item {
+                                    width: 544
+                                    height: 20
+
+                                    Text {
+                                        anchors.left: parent.left
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: "◈ WORKSPACE DISTRIBUTION (1 - 10) // ASSIGN TO MONITORS"
+                                        color: SageState.secondaryAccent
+                                        font.family: "JetBrainsMono Nerd Font"
+                                        font.pixelSize: 10
+                                        font.bold: true
+                                    }
+
+                                    Rectangle {
+                                        anchors.right: parent.right
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: 140
+                                        height: 20
+                                        radius: 3
+                                        color: autoWsMouse.containsMouse ? SageState.bgCardHover : SageState.bgVoid
+                                        border.width: 1
+                                        border.color: SageState.secondaryAccent
+
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: "⚡ AUTO (5 & 5 / SPLIT)"
+                                            color: SageState.secondaryAccent
+                                            font.family: "JetBrainsMono Nerd Font"
+                                            font.pixelSize: 8
+                                            font.bold: true
+                                        }
+
+                                        MouseArea {
+                                            id: autoWsMouse
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: SageState.autoDistributeWorkspaces()
+                                        }
+                                    }
+                                }
+
+                                Row {
+                                    width: 544
+                                    height: 44
+                                    spacing: 5
+
+                                    Repeater {
+                                        model: 10
+
+                                        Rectangle {
+                                            id: wsCard
+                                            required property int index
+                                            readonly property int wsId: index + 1
+                                            readonly property string wsStr: wsId.toString()
+                                            readonly property string assignedMon: (SageState.workspaceMap && SageState.workspaceMap[wsStr])
+                                                                                  ? SageState.workspaceMap[wsStr]
+                                                                                  : (SageState.monitorList.length > 0 ? SageState.monitorList[0].name : "eDP-1")
+                                            readonly property int monIndex: {
+                                                for (let i = 0; i < SageState.monitorList.length; ++i) {
+                                                    if (SageState.monitorList[i].name === wsCard.assignedMon) return i;
+                                                }
+                                                return 0;
+                                            }
+
+                                            width: 49.9
+                                            height: 44
+                                            radius: 4
+                                            color: wsMouse.containsMouse ? SageState.bgCardHover : SageState.bgVoid
+                                            border.width: 1
+                                            border.color: monIndex === 0 ? SageState.primaryAccent : SageState.secondaryAccent
+
+                                            Column {
+                                                anchors.centerIn: parent
+                                                spacing: 2
+
+                                                Text {
+                                                    anchors.horizontalCenter: parent.horizontalCenter
+                                                    text: "WS " + wsCard.wsId
+                                                    color: SageState.textPrimary
+                                                    font.family: "JetBrainsMono Nerd Font"
+                                                    font.pixelSize: 10
+                                                    font.bold: true
+                                                }
+
+                                                Rectangle {
+                                                    width: 42
+                                                    height: 14
+                                                    radius: 2
+                                                    color: wsCard.monIndex === 0
+                                                           ? Qt.rgba(SageState.primaryAccent.r, SageState.primaryAccent.g, SageState.primaryAccent.b, 0.25)
+                                                           : Qt.rgba(SageState.secondaryAccent.r, SageState.secondaryAccent.g, SageState.secondaryAccent.b, 0.25)
+                                                    Text {
+                                                        anchors.centerIn: parent
+                                                        text: wsCard.assignedMon
+                                                        color: wsCard.monIndex === 0 ? SageState.primaryAccent : SageState.secondaryAccent
+                                                        font.family: "JetBrainsMono Nerd Font"
+                                                        font.pixelSize: 8
+                                                        font.bold: true
+                                                        elide: Text.ElideRight
+                                                    }
+                                                }
+                                            }
+
+                                            MouseArea {
+                                                id: wsMouse
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: {
+                                                    if (SageState.monitorList.length > 1) {
+                                                        const nextIdx = (wsCard.monIndex + 1) % SageState.monitorList.length;
+                                                        const nextMon = SageState.monitorList[nextIdx].name;
+                                                        const copy = Object.assign({}, SageState.workspaceMap);
+                                                        copy[wsCard.wsStr] = nextMon;
+                                                        SageState.applyWorkspaceMapping(copy);
                                                     }
                                                 }
                                             }

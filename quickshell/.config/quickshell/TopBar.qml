@@ -21,6 +21,18 @@ Variants {
         color: "transparent"
 
         property bool showSpecialLayer: false
+        property bool rightCollapsed: false
+        readonly property bool compactBar: barWindow.width < 1640
+        readonly property bool miniBar: barWindow.width < 1380
+        readonly property string activeSpecialId: {
+            const list = SageState.specialWorkspaces;
+            for (let i = 0; i < list.length; ++i) {
+                if (list[i].visible === true) {
+                    return list[i].id !== undefined ? list[i].id : "";
+                }
+            }
+            return "";
+        }
         readonly property string activeSpecialLabel: {
             const list = SageState.specialWorkspaces;
             for (let i = 0; i < list.length; ++i) {
@@ -30,6 +42,7 @@ Variants {
             }
             return "";
         }
+        readonly property bool inSpecialView: barWindow.showSpecialLayer || barWindow.activeSpecialLabel.length > 0
 
         // ═══════════════════════════════════════════════════════════════════════
         // 1. LEFT ISLAND: RAPHAEL Emblem + Normal Workspaces (Special WS Hidden Behind)
@@ -55,17 +68,17 @@ Variants {
                 anchors.centerIn: parent
                 spacing: 8
 
-                // Great Sage / Raphael Central Dashboard Trigger
+                // Great Sage / Raphael Mode Switcher (Toggles Normal vs Special Workspaces view; Right-click opens Dashboard)
                 Rectangle {
                     height: 26
                     width: sageBtnRow.implicitWidth + 18
                     radius: 4
                     anchors.verticalCenter: parent.verticalCenter
-                    color: SageState.dashboardOpen
-                           ? Qt.rgba(SageState.secondaryAccent.r, SageState.secondaryAccent.g, SageState.secondaryAccent.b, 0.25)
+                    color: barWindow.inSpecialView
+                           ? Qt.rgba(SageState.secondaryAccent.r, SageState.secondaryAccent.g, SageState.secondaryAccent.b, 0.28)
                            : (sageMouse.containsMouse ? SageState.bgCardHover : SageState.bgCard)
                     border.width: 1
-                    border.color: SageState.dashboardOpen ? SageState.secondaryAccent : SageState.primaryAccent
+                    border.color: barWindow.inSpecialView ? SageState.secondaryAccent : SageState.primaryAccent
 
                     Row {
                         id: sageBtnRow
@@ -83,8 +96,8 @@ Variants {
 
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
-                            text: "RAPHAEL"
-                            color: SageState.textPrimary
+                            text: barWindow.inSpecialView ? "RAPHAEL ◈ SPC" : "RAPHAEL"
+                            color: barWindow.inSpecialView ? SageState.secondaryAccent : SageState.textPrimary
                             font.family: "JetBrainsMono Nerd Font"
                             font.pixelSize: 11
                             font.bold: true
@@ -96,8 +109,20 @@ Variants {
                         id: sageMouse
                         anchors.fill: parent
                         hoverEnabled: true
+                        acceptedButtons: Qt.LeftButton | Qt.RightButton
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: SageState.toggleDashboard()
+                        onClicked: function(mouse) {
+                            if (mouse.button === Qt.RightButton) {
+                                SageState.toggleDashboard(barWindow.modelData.name);
+                            } else {
+                                if (barWindow.activeSpecialId.length > 0) {
+                                    SageState.toggleSpecialWs(barWindow.activeSpecialId);
+                                    barWindow.showSpecialLayer = false;
+                                } else {
+                                    barWindow.showSpecialLayer = !barWindow.showSpecialLayer;
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -108,11 +133,11 @@ Variants {
                     color: Qt.rgba(SageState.primaryAccent.r, SageState.primaryAccent.g, SageState.primaryAccent.b, 0.35)
                 }
 
-                // Normal Workspaces 1..6 (Special Workspaces hidden behind)
+                // 1A. Normal Workspaces 1..6 (ONLY shown when no Special Workspace is active & layer not flipped)
                 Row {
                     spacing: 4
                     anchors.verticalCenter: parent.verticalCenter
-                    visible: !barWindow.showSpecialLayer
+                    visible: !barWindow.inSpecialView
 
                     Repeater {
                         model: 6
@@ -122,9 +147,13 @@ Variants {
                             required property int index
                             readonly property int wsId: index + 1
                             readonly property bool isFocused: Hyprland.focusedWorkspace ? (Hyprland.focusedWorkspace.id === wsId) : (wsId === 1)
+                            readonly property string appEmblem: (SageState.workspaceIcons && SageState.workspaceIcons[wsId.toString()])
+                                                                ? SageState.workspaceIcons[wsId.toString()]
+                                                                : ""
+                            readonly property bool hasApp: appEmblem.length > 0
 
                             height: 24
-                            width: isFocused ? 30 : 22
+                            width: hasApp ? (isFocused ? 42 : 38) : (isFocused ? 28 : 22)
                             radius: 4
                             anchors.verticalCenter: parent.verticalCenter
                             color: isFocused
@@ -133,17 +162,144 @@ Variants {
                             border.width: 1
                             border.color: isFocused
                                           ? SageState.secondaryAccent
-                                          : Qt.rgba(SageState.primaryAccent.r, SageState.primaryAccent.g, SageState.primaryAccent.b, 0.3)
+                                          : (hasApp
+                                             ? Qt.rgba(SageState.secondaryAccent.r, SageState.secondaryAccent.g, SageState.secondaryAccent.b, 0.55)
+                                             : Qt.rgba(SageState.primaryAccent.r, SageState.primaryAccent.g, SageState.primaryAccent.b, 0.3))
 
                             Behavior on width { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
 
-                            Text {
+                            Row {
                                 anchors.centerIn: parent
-                                text: wsPill.wsId.toString()
-                                color: wsPill.isFocused ? "#050911" : SageState.textPrimary
-                                font.family: "JetBrainsMono Nerd Font"
-                                font.pixelSize: 11
-                                font.bold: true
+                                spacing: 3
+
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: wsPill.wsId.toString()
+                                    color: wsPill.isFocused ? "#050911" : SageState.textPrimary
+                                    font.family: "JetBrainsMono Nerd Font"
+                                    font.pixelSize: 11
+                                    font.bold: true
+                                }
+
+                                // Slime / Tensura-Style Vector App Emblem next to Workspace Number
+                                Canvas {
+                                    id: wsEmblemCanvas
+                                    visible: wsPill.hasApp
+                                    width: 14
+                                    height: 14
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    property string emblemKind: wsPill.appEmblem
+                                    property bool pillFocused: wsPill.isFocused
+                                    property color fgColor: wsPill.isFocused ? "#050911" : SageState.secondaryAccent
+                                    property color subColor: wsPill.isFocused ? "#0a1929" : SageState.primaryAccent
+                                    onEmblemKindChanged: requestPaint()
+                                    onPillFocusedChanged: requestPaint()
+                                    onFgColorChanged: requestPaint()
+
+                                    onPaint: {
+                                        var ctx = getContext("2d");
+                                        ctx.reset();
+                                        ctx.strokeStyle = fgColor.toString();
+                                        ctx.fillStyle = fgColor.toString();
+                                        ctx.lineWidth = 1.35;
+
+                                        // Helper to draw Rimuru Slime body silhouette
+                                        function drawSlimeBody(cyOffset) {
+                                            var oy = cyOffset || 0;
+                                            ctx.beginPath();
+                                            ctx.moveTo(7, 2.2 + oy);
+                                            ctx.bezierCurveTo(11.5, 4.2 + oy, 13.2, 8.2 + oy, 12.2, 11.2 + oy);
+                                            ctx.bezierCurveTo(11.3, 12.8 + oy, 2.7, 12.8 + oy, 1.8, 11.2 + oy);
+                                            ctx.bezierCurveTo(0.8, 8.2 + oy, 2.5, 4.2 + oy, 7, 2.2 + oy);
+                                            ctx.closePath();
+                                            ctx.stroke();
+                                        }
+
+                                        if (emblemKind === "code") {
+                                            // Great Sage Octagonal Magic Circle + < > Code Rune
+                                            ctx.beginPath();
+                                            for (var i = 0; i < 8; ++i) {
+                                                var ang = (i * Math.PI / 4) - (Math.PI / 8);
+                                                var rx = 7 + 5.8 * Math.cos(ang);
+                                                var ry = 7 + 5.8 * Math.sin(ang);
+                                                if (i === 0) ctx.moveTo(rx, ry);
+                                                else ctx.lineTo(rx, ry);
+                                            }
+                                            ctx.closePath();
+                                            ctx.stroke();
+                                            // < > brackets inside magic circle
+                                            ctx.beginPath();
+                                            ctx.moveTo(5.6, 5.0);
+                                            ctx.lineTo(3.6, 7.0);
+                                            ctx.lineTo(5.6, 9.0);
+                                            ctx.moveTo(8.4, 5.0);
+                                            ctx.lineTo(10.4, 7.0);
+                                            ctx.lineTo(8.4, 9.0);
+                                            ctx.stroke();
+                                        } else if (emblemKind === "browser") {
+                                            // Rimuru Slime + Dimensional Web Globe / Meridian
+                                            drawSlimeBody(0.5);
+                                            ctx.beginPath();
+                                            ctx.moveTo(2.4, 8.2);
+                                            ctx.lineTo(11.6, 8.2);
+                                            ctx.moveTo(7.0, 2.8);
+                                            ctx.lineTo(7.0, 12.2);
+                                            ctx.stroke();
+                                        } else if (emblemKind === "terminal") {
+                                            // Rimuru Slime + >_ Command Rune
+                                            drawSlimeBody(0.4);
+                                            ctx.beginPath();
+                                            ctx.moveTo(4.2, 6.8);
+                                            ctx.lineTo(6.5, 8.5);
+                                            ctx.lineTo(4.2, 10.2);
+                                            ctx.moveTo(7.4, 10.2);
+                                            ctx.lineTo(9.8, 10.2);
+                                            ctx.stroke();
+                                        } else if (emblemKind === "chat") {
+                                            // Telepathy Slime (Rimuru Slime + Speech Wave / Controller Eyes)
+                                            drawSlimeBody(0.8);
+                                            ctx.fillRect(4.6, 7.4, 1.3, 2.2);
+                                            ctx.fillRect(8.1, 7.4, 1.3, 2.2);
+                                            // Telepathy arc above slime
+                                            ctx.beginPath();
+                                            ctx.arc(7, 2.4, 2.2, Math.PI * 1.15, Math.PI * 1.85);
+                                            ctx.stroke();
+                                        } else if (emblemKind === "media") {
+                                            // Sonic Slime / Musical Aura Note
+                                            drawSlimeBody(0.8);
+                                            ctx.beginPath();
+                                            ctx.arc(5.8, 9.2, 1.3, 0, Math.PI * 2);
+                                            ctx.fill();
+                                            ctx.beginPath();
+                                            ctx.moveTo(7.0, 9.2);
+                                            ctx.lineTo(7.0, 4.8);
+                                            ctx.lineTo(9.8, 5.8);
+                                            ctx.stroke();
+                                        } else if (emblemKind === "game") {
+                                            // Demon Lord Crossed Blades / Game Crest
+                                            drawSlimeBody(0.6);
+                                            ctx.beginPath();
+                                            ctx.moveTo(4.4, 6.4);
+                                            ctx.lineTo(9.6, 10.6);
+                                            ctx.moveTo(9.6, 6.4);
+                                            ctx.lineTo(4.4, 10.6);
+                                            ctx.stroke();
+                                        } else if (emblemKind === "files") {
+                                            // Spatial Storage Magic Cube inside Slime
+                                            drawSlimeBody(0.6);
+                                            ctx.strokeRect(4.8, 6.6, 4.4, 3.6);
+                                        } else {
+                                            // Classic Rimuru Tempest Slime with iconic | | eyes
+                                            drawSlimeBody(0.5);
+                                            ctx.beginPath();
+                                            ctx.moveTo(5.2, 6.8);
+                                            ctx.lineTo(5.2, 9.6);
+                                            ctx.moveTo(8.8, 6.8);
+                                            ctx.lineTo(8.8, 9.6);
+                                            ctx.stroke();
+                                        }
+                                    }
+                                }
                             }
 
                             MouseArea {
@@ -151,39 +307,17 @@ Variants {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: Hyprland.dispatch("hl.dsp.focus({ workspace = " + wsPill.wsId + " })")
+                                onClicked: SageState.switchNormalWorkspace(wsPill.wsId)
                             }
                         }
                     }
                 }
 
-                // Active Special Workspace Indicator (When open over normal workspaces)
-                Rectangle {
-                    visible: !barWindow.showSpecialLayer && barWindow.activeSpecialLabel.length > 0
-                    height: 24
-                    width: actSpecText.implicitWidth + 16
-                    radius: 4
-                    anchors.verticalCenter: parent.verticalCenter
-                    color: Qt.rgba(SageState.secondaryAccent.r, SageState.secondaryAccent.g, SageState.secondaryAccent.b, 0.25)
-                    border.width: 1
-                    border.color: SageState.secondaryAccent
-
-                    Text {
-                        id: actSpecText
-                        anchors.centerIn: parent
-                        text: "◈ " + barWindow.activeSpecialLabel
-                        color: SageState.secondaryAccent
-                        font.family: "JetBrainsMono Nerd Font"
-                        font.pixelSize: 10
-                        font.bold: true
-                    }
-                }
-
-                // Hidden Special Workspaces Layer (Revealed when flipping behind normal workspaces)
+                // 1B. Unified Special Workspaces Layer (Replaces normal workspaces when inSpecialView is active)
                 Row {
                     spacing: 5
                     anchors.verticalCenter: parent.verticalCenter
-                    visible: barWindow.showSpecialLayer
+                    visible: barWindow.inSpecialView
 
                     Repeater {
                         model: SageState.specialWorkspaces
@@ -192,19 +326,22 @@ Variants {
                             id: specBadge
                             required property var modelData
                             readonly property bool isRunning: modelData.running === true
-                            readonly property string codeText: modelData.short !== undefined && modelData.short.length > 0
-                                                               ? modelData.short
-                                                               : "SPC"
+                            readonly property bool isVisibleNow: modelData.visible === true
+                            readonly property string codeText: modelData.label !== undefined && modelData.label.length > 0
+                                                               ? modelData.label
+                                                               : (modelData.short || "SPC")
 
                             height: 24
                             width: specBadgeRow.implicitWidth + 14
                             radius: 4
                             anchors.verticalCenter: parent.verticalCenter
-                            color: isRunning
-                                   ? Qt.rgba(SageState.secondaryAccent.r, SageState.secondaryAccent.g, SageState.secondaryAccent.b, 0.24)
-                                   : SageState.bgCard
-                            border.width: 1
-                            border.color: isRunning ? SageState.secondaryAccent : SageState.primaryAccent
+                            color: isVisibleNow
+                                   ? SageState.secondaryAccent
+                                   : (isRunning
+                                      ? Qt.rgba(SageState.secondaryAccent.r, SageState.secondaryAccent.g, SageState.secondaryAccent.b, 0.24)
+                                      : (specMouse.containsMouse ? SageState.bgCardHover : SageState.bgCard))
+                            border.width: isVisibleNow ? 1.5 : 1
+                            border.color: (isVisibleNow || isRunning) ? SageState.secondaryAccent : SageState.primaryAccent
 
                             Row {
                                 id: specBadgeRow
@@ -216,64 +353,66 @@ Variants {
                                     height: 5
                                     radius: 2.5
                                     anchors.verticalCenter: parent.verticalCenter
-                                    color: specBadge.isRunning ? SageState.emeraldOk : SageState.textMuted
+                                    color: specBadge.isVisibleNow
+                                           ? "#050911"
+                                           : (specBadge.isRunning ? SageState.emeraldOk : SageState.textMuted)
                                 }
 
                                 Text {
                                     anchors.verticalCenter: parent.verticalCenter
                                     text: specBadge.codeText
-                                    color: specBadge.isRunning ? SageState.secondaryAccent : SageState.textPrimary
+                                    color: specBadge.isVisibleNow
+                                           ? "#050911"
+                                           : (specBadge.isRunning ? SageState.secondaryAccent : SageState.textPrimary)
                                     font.family: "JetBrainsMono Nerd Font"
                                     font.pixelSize: 10
+                                    font.bold: true
+                                }
+
+                                Text {
+                                    visible: specBadge.isVisibleNow
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: "✕"
+                                    color: "#050911"
+                                    font.family: "JetBrainsMono Nerd Font"
+                                    font.pixelSize: 9
                                     font.bold: true
                                 }
                             }
 
                             MouseArea {
+                                id: specMouse
                                 anchors.fill: parent
+                                hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: SageState.toggleSpecialWs(specBadge.modelData.id)
+                                onClicked: {
+                                    if (specBadge.isVisibleNow) {
+                                        SageState.toggleSpecialWs(specBadge.modelData.id);
+                                        barWindow.showSpecialLayer = false;
+                                    } else {
+                                        SageState.toggleSpecialWs(specBadge.modelData.id);
+                                    }
+                                }
                             }
                         }
-                    }
-                }
-
-                // Flip Button to peek at hidden Special Workspaces behind normal ones
-                Rectangle {
-                    height: 24
-                    width: 24
-                    radius: 4
-                    anchors.verticalCenter: parent.verticalCenter
-                    color: barWindow.showSpecialLayer ? SageState.secondaryAccent : SageState.bgCard
-                    border.width: 1
-                    border.color: SageState.secondaryAccent
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: barWindow.showSpecialLayer ? "◂" : "▸"
-                        color: barWindow.showSpecialLayer ? "#050911" : SageState.secondaryAccent
-                        font.family: "JetBrainsMono Nerd Font"
-                        font.pixelSize: 11
-                        font.bold: true
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: barWindow.showSpecialLayer = !barWindow.showSpecialLayer
                     }
                 }
             }
         }
 
         // ═══════════════════════════════════════════════════════════════════════
-        // 2. CENTER ISLAND: Clock + Date + Media (Hover or Click opens Caelestia Top HUD)
+        // 2. CENTER ISLAND: Clock + Date + Media (Click opens Caelestia Top HUD)
+        //    Automatically shifts into safe free space if screen is small so it NEVER overlaps!
         // ═══════════════════════════════════════════════════════════════════════
         SageFrame {
             id: centerIsland
-            anchors.centerIn: parent
+            readonly property real idealX: (barWindow.width - width) / 2
+            readonly property real minSafeX: leftIsland.x + leftIsland.width + 8
+            readonly property real maxSafeX: rightIsland.x - width - 8
+            x: (maxSafeX >= minSafeX) ? Math.max(minSafeX, Math.min(maxSafeX, idealX)) : idealX
+            anchors.verticalCenter: parent.verticalCenter
             height: 38
-            width: centerRow.implicitWidth + 32
+            width: centerRow.implicitWidth + (barWindow.compactBar ? 22 : 32)
             chamfer: 9
             fillColor: SageState.topDropdownOpen ? SageState.bgCardHover : SageState.bgVoid
             borderColor: SageState.topDropdownOpen ? SageState.secondaryAccent : SageState.primaryAccent
@@ -284,7 +423,7 @@ Variants {
             Row {
                 id: centerRow
                 anchors.centerIn: parent
-                spacing: 10
+                spacing: barWindow.compactBar ? 6 : 10
 
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
@@ -300,11 +439,12 @@ Variants {
                     text: SageState.clockTime
                     color: SageState.textPrimary
                     font.family: "JetBrainsMono Nerd Font"
-                    font.pixelSize: 13
+                    font.pixelSize: barWindow.compactBar ? 12 : 13
                     font.bold: true
                 }
 
                 Text {
+                    visible: !barWindow.miniBar
                     anchors.verticalCenter: parent.verticalCenter
                     text: "//"
                     color: SageState.primaryAccent
@@ -314,6 +454,7 @@ Variants {
                 }
 
                 Text {
+                    visible: !barWindow.miniBar
                     anchors.verticalCenter: parent.verticalCenter
                     text: SageState.clockDate
                     color: SageState.secondaryAccent
@@ -323,9 +464,9 @@ Variants {
                 }
 
                 Rectangle {
-                    visible: SageState.mediaText.length > 0
+                    visible: SageState.mediaText.length > 0 && !barWindow.compactBar
                     height: 22
-                    width: mediaLabel.implicitWidth + 14
+                    width: Math.min(180, mediaLabel.implicitWidth + 14)
                     radius: 4
                     anchors.verticalCenter: parent.verticalCenter
                     color: Qt.rgba(SageState.primaryAccent.r, SageState.primaryAccent.g, SageState.primaryAccent.b, 0.16)
@@ -334,12 +475,14 @@ Variants {
 
                     Text {
                         id: mediaLabel
+                        width: Math.min(166, implicitWidth)
                         anchors.centerIn: parent
                         text: "▸ " + SageState.mediaText
                         color: SageState.primaryAccent
                         font.family: "JetBrainsMono Nerd Font"
                         font.pixelSize: 10
                         font.bold: true
+                        elide: Text.ElideRight
                     }
                 }
             }
@@ -348,18 +491,12 @@ Variants {
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onEntered: {
-                    if (!SageState.dashboardOpen && !SageState.launcherOpen) {
-                        SageState.topDropdownOpen = true;
-                        SageState.cornerMenuOpen = false;
-                    }
-                }
-                onClicked: SageState.toggleTopDropdown()
+                onClicked: SageState.toggleTopDropdown(barWindow.modelData.name)
             }
         }
 
         // ═══════════════════════════════════════════════════════════════════════
-        // 3. RIGHT ISLAND: Clean Telemetry + [ MENU ] Button -> Opens Dashboard
+        // 3. RIGHT ISLAND: Clean Telemetry + Collapsible Toggle + [ MENU ] Button
         // ═══════════════════════════════════════════════════════════════════════
         SageFrame {
             id: rightIsland
@@ -369,7 +506,7 @@ Variants {
                 verticalCenter: parent.verticalCenter
             }
             height: 38
-            width: rightRow.implicitWidth + 26
+            width: rightRow.implicitWidth + (barWindow.compactBar ? 18 : 26)
             chamfer: 9
             fillColor: SageState.bgVoid
             borderColor: SageState.primaryAccent
@@ -380,7 +517,33 @@ Variants {
             Row {
                 id: rightRow
                 anchors.centerIn: parent
-                spacing: 8
+                spacing: barWindow.compactBar ? 5 : 8
+
+                // Collapse / Expand Button [ ▸ / ◂ ] to manually shrink/expand the top-right bar
+                Rectangle {
+                    height: 24
+                    width: 20
+                    radius: 4
+                    anchors.verticalCenter: parent.verticalCenter
+                    color: barWindow.rightCollapsed ? SageState.secondaryAccent : SageState.bgCard
+                    border.width: 1
+                    border.color: SageState.secondaryAccent
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: barWindow.rightCollapsed ? "◂" : "▸"
+                        color: barWindow.rightCollapsed ? "#050911" : SageState.secondaryAccent
+                        font.family: "JetBrainsMono Nerd Font"
+                        font.pixelSize: 10
+                        font.bold: true
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: barWindow.rightCollapsed = !barWindow.rightCollapsed
+                    }
+                }
 
                 // Background & System Tray Apps Logos Pill (Left of CPU)
                 Rectangle {
@@ -465,22 +628,10 @@ Variants {
                                     acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: function(mouse) {
-                                        if (mouse.button === Qt.RightButton) {
-                                            if (trayBadge.modelData.hasMenu) {
-                                                const pos = trayBadge.mapToItem(null, 0, trayBadge.height + 4);
-                                                trayBadge.modelData.display(barWindow, Math.round(pos.x), Math.round(pos.y));
-                                            } else {
-                                                trayBadge.modelData.secondaryActivate();
-                                            }
-                                        } else if (mouse.button === Qt.MiddleButton) {
-                                            trayBadge.modelData.secondaryActivate();
+                                        if (mouse.button === Qt.MiddleButton) {
+                                            trayBadge.modelData.activate();
                                         } else {
-                                            if (trayBadge.modelData.onlyMenu && trayBadge.modelData.hasMenu) {
-                                                const pos = trayBadge.mapToItem(null, 0, trayBadge.height + 4);
-                                                trayBadge.modelData.display(barWindow, Math.round(pos.x), Math.round(pos.y));
-                                            } else {
-                                                trayBadge.modelData.activate();
-                                            }
+                                            SageState.openTrayPopup(barWindow.modelData.name, trayBadge.modelData, null);
                                         }
                                     }
                                 }
@@ -546,18 +697,26 @@ Variants {
                                     id: appMouse
                                     anchors.fill: parent
                                     hoverEnabled: true
+                                    acceptedButtons: Qt.LeftButton | Qt.RightButton
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: SageState.focusRunningApp(appBadge.modelData)
+                                    onClicked: function(mouse) {
+                                        if (mouse.button === Qt.RightButton) {
+                                            SageState.openTrayPopup(barWindow.modelData.name, null, appBadge.modelData);
+                                        } else {
+                                            SageState.openTrayPopup(barWindow.modelData.name, null, appBadge.modelData);
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
                 }
 
-                // CPU + RAM Pill
+                // CPU + RAM Pill (Auto-compacts on smaller screens & hides when collapsed)
                 Rectangle {
+                    visible: !barWindow.rightCollapsed
                     height: 24
-                    width: sysRow.implicitWidth + 16
+                    width: sysRow.implicitWidth + (barWindow.compactBar ? 10 : 16)
                     radius: 4
                     anchors.verticalCenter: parent.verticalCenter
                     color: SageState.bgCard
@@ -567,18 +726,19 @@ Variants {
                     Row {
                         id: sysRow
                         anchors.centerIn: parent
-                        spacing: 8
+                        spacing: barWindow.compactBar ? 5 : 8
 
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
-                            text: "CPU " + SageState.cpuUsage + "%"
+                            text: (barWindow.compactBar ? "C " : "CPU ") + SageState.cpuUsage + "%"
                             color: SageState.cpuUsage > 80 ? SageState.crimsonAlert : SageState.primaryAccent
                             font.family: "JetBrainsMono Nerd Font"
-                            font.pixelSize: 11
+                            font.pixelSize: barWindow.compactBar ? 10 : 11
                             font.bold: true
                         }
 
                         Text {
+                            visible: !barWindow.miniBar
                             anchors.verticalCenter: parent.verticalCenter
                             text: "|"
                             color: SageState.textMuted
@@ -587,11 +747,12 @@ Variants {
                         }
 
                         Text {
+                            visible: !barWindow.miniBar
                             anchors.verticalCenter: parent.verticalCenter
-                            text: "RAM " + SageState.ramUsage + "%"
+                            text: (barWindow.compactBar ? "R " : "RAM ") + SageState.ramUsage + "%"
                             color: SageState.secondaryAccent
                             font.family: "JetBrainsMono Nerd Font"
-                            font.pixelSize: 11
+                            font.pixelSize: barWindow.compactBar ? 10 : 11
                             font.bold: true
                         }
                     }
@@ -605,9 +766,9 @@ Variants {
 
                 // VPN Badge
                 Rectangle {
-                    visible: SageState.vpnActive
+                    visible: SageState.vpnActive && !barWindow.rightCollapsed
                     height: 24
-                    width: vpnText.implicitWidth + 14
+                    width: vpnText.implicitWidth + (barWindow.compactBar ? 10 : 14)
                     radius: 4
                     anchors.verticalCenter: parent.verticalCenter
                     color: Qt.rgba(SageState.emeraldOk.r, SageState.emeraldOk.g, SageState.emeraldOk.b, 0.18)
@@ -617,7 +778,7 @@ Variants {
                     Text {
                         id: vpnText
                         anchors.centerIn: parent
-                        text: "VPN ON"
+                        text: barWindow.compactBar ? "VPN" : "VPN ON"
                         color: SageState.emeraldOk
                         font.family: "JetBrainsMono Nerd Font"
                         font.pixelSize: 10
@@ -627,14 +788,15 @@ Variants {
                     MouseArea {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: SageState.openDashboardTab(4)
+                        onClicked: SageState.openDashboardTab(4, barWindow.modelData.name)
                     }
                 }
 
                 // Volume Pill
                 Rectangle {
+                    visible: !barWindow.rightCollapsed
                     height: 24
-                    width: volText.implicitWidth + 14
+                    width: volText.implicitWidth + (barWindow.compactBar ? 10 : 14)
                     radius: 4
                     anchors.verticalCenter: parent.verticalCenter
                     color: SageState.bgCard
@@ -644,30 +806,30 @@ Variants {
                     Text {
                         id: volText
                         anchors.centerIn: parent
-                        text: SageState.muted ? "MUTE" : ("VOL " + SageState.volume + "%")
+                        text: SageState.muted ? "MUTE" : ((barWindow.compactBar ? "V " : "VOL ") + SageState.volume + "%")
                         color: SageState.muted ? SageState.crimsonAlert : SageState.textPrimary
                         font.family: "JetBrainsMono Nerd Font"
-                        font.pixelSize: 11
+                        font.pixelSize: barWindow.compactBar ? 10 : 11
                         font.bold: true
                     }
 
                     MouseArea {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: SageState.runCmd([SageState.ctlScript, "vol-mute"])
+                        onClicked: SageState.toggleSideSliders(barWindow.modelData.name)
                         onWheel: function(wheel) {
                             const step = wheel.angleDelta.y > 0 ? 5 : -5;
                             const nextVol = Math.max(0, Math.min(100, SageState.volume + step));
-                            SageState.volume = nextVol;
-                            SageState.runCmd([SageState.ctlScript, "vol-set", nextVol.toString()]);
+                            SageState.setVolumeValue(nextVol);
                         }
                     }
                 }
 
                 // Battery Pill
                 Rectangle {
+                    visible: !barWindow.rightCollapsed
                     height: 24
-                    width: batText.implicitWidth + 14
+                    width: batText.implicitWidth + (barWindow.compactBar ? 10 : 14)
                     radius: 4
                     anchors.verticalCenter: parent.verticalCenter
                     color: SageState.bgCard
@@ -677,12 +839,12 @@ Variants {
                     Text {
                         id: batText
                         anchors.centerIn: parent
-                        text: (SageState.batStatus === "Charging" || SageState.batStatus === "Full" ? "AC " : "BAT ") + SageState.batPercent + "%"
+                        text: (barWindow.compactBar ? "" : (SageState.batStatus === "Charging" || SageState.batStatus === "Full" ? "AC " : "BAT ")) + SageState.batPercent + "%"
                         color: SageState.batPercent <= 20 && SageState.batStatus === "Discharging"
                                ? SageState.crimsonAlert
                                : SageState.emeraldOk
                         font.family: "JetBrainsMono Nerd Font"
-                        font.pixelSize: 11
+                        font.pixelSize: barWindow.compactBar ? 10 : 11
                         font.bold: true
                     }
                 }
@@ -797,8 +959,9 @@ Variants {
 
                 // Keyboard Layout Pill -> Opens the Keyboard Selector List in Tab 03
                 Rectangle {
+                    visible: !barWindow.rightCollapsed
                     height: 24
-                    width: kbText.implicitWidth + 14
+                    width: kbText.implicitWidth + (barWindow.compactBar ? 10 : 14)
                     radius: 4
                     anchors.verticalCenter: parent.verticalCenter
                     color: SageState.bgCard
@@ -811,19 +974,20 @@ Variants {
                         text: SageState.kbLayout.toUpperCase()
                         color: SageState.secondaryAccent
                         font.family: "JetBrainsMono Nerd Font"
-                        font.pixelSize: 11
+                        font.pixelSize: barWindow.compactBar ? 10 : 11
                         font.bold: true
                     }
 
                     MouseArea {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: SageState.openDashboardTab(2)
+                        onClicked: SageState.openDashboardTab(2, barWindow.modelData.name)
                     }
                 }
 
                 // Keybinds Cheat Sheet Trigger [ ? ]
                 Rectangle {
+                    visible: !barWindow.rightCollapsed && !barWindow.compactBar
                     height: 24
                     width: 24
                     radius: 4
@@ -846,7 +1010,7 @@ Variants {
                     MouseArea {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: SageState.openDashboardTab(5)
+                        onClicked: SageState.openDashboardTab(5, barWindow.modelData.name)
                     }
                 }
 
@@ -874,7 +1038,7 @@ Variants {
                     MouseArea {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: SageState.toggleDashboard()
+                        onClicked: SageState.toggleDashboard(barWindow.modelData.name)
                     }
                 }
             }

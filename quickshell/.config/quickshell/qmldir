@@ -4,5 +4,6 @@ TopBar 1.0 TopBar.qml
 CentralDashboard 1.0 CentralDashboard.qml
 TopCenterMenu 1.0 TopCenterMenu.qml
 BottomLauncher 1.0 BottomLauncher.qml
-BottomRightMenu 1.0 BottomRightMenu.qml
+RightSideSliders 1.0 RightSideSliders.qml
 SageOsd 1.0 SageOsd.qml
+TrayPopupMenu 1.0 TrayPopupMenu.qml
