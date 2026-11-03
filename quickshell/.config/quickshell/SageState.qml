@@ -59,6 +59,11 @@ Singleton {
     property alias controlCenterOpen: root.dashboardOpen
 
     function superPress() {
+        if (root.launcherOpen) {
+            root.launcherOpen = false;
+            lastLauncherToggleTime = Date.now();
+            return;
+        }
         lastSuperPressTime = Date.now();
         superComboUsed = false;
     }
@@ -69,6 +74,11 @@ Singleton {
 
     function superRelease() {
         const now = Date.now();
+        if (root.launcherOpen) {
+            root.launcherOpen = false;
+            lastLauncherToggleTime = now;
+            return;
+        }
         if (now - lastLauncherToggleTime < 220) {
             return;
         }
@@ -328,7 +338,23 @@ Singleton {
     readonly property color crimsonAlert: "#ff5252"
     readonly property color emeraldOk: "#00e676"
 
+    readonly property color diabloCrimson: "#e53935"
+    readonly property color diabloGold: "#ffd54f"
+    readonly property color testarossaWhite: "#ffffff"
+    readonly property color testarossaRuby: "#ef4444"
+    readonly property color carreraGold: "#fbbf24"
+    readonly property color carreraViolet: "#a855f7"
+    readonly property color ultimaViolet: "#c084fc"
+    readonly property color ultimaCyan: "#10b981"
+    readonly property color mustangOrange: "#f97316"
+    readonly property color mustangAmber: "#ffd54f"
+
     readonly property color primaryAccent: {
+        if (themeName === "diablo") return diabloCrimson;
+        if (themeName === "testarossa") return testarossaWhite;
+        if (themeName === "carrera") return carreraGold;
+        if (themeName === "ultima") return ultimaViolet;
+        if (themeName === "mustang") return mustangOrange;
         if (themeName === "beelzebub") return purpleBeelzebub;
         if (themeName === "hellflare") return crimsonAlert;
         if (themeName === "magicule") return cyanMagicule;
@@ -336,6 +362,11 @@ Singleton {
     }
 
     readonly property color secondaryAccent: {
+        if (themeName === "diablo") return diabloGold;
+        if (themeName === "testarossa") return testarossaRuby;
+        if (themeName === "carrera") return carreraViolet;
+        if (themeName === "ultima") return ultimaCyan;
+        if (themeName === "mustang") return mustangAmber;
         if (themeName === "beelzebub") return cyanMagicule;
         if (themeName === "hellflare") return goldSage;
         if (themeName === "magicule") return iceMagicule;

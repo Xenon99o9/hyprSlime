@@ -23,9 +23,14 @@ Variants {
 
         WlrLayershell.layer: WlrLayer.Overlay
         WlrLayershell.keyboardFocus: (SageState.launcherOpen && SageState.isActiveScreen(launcherWindow.modelData))
-                                     ? WlrKeyboardFocus.Exclusive
+                                     ? WlrKeyboardFocus.OnDemand
                                      : WlrKeyboardFocus.None
         exclusionMode: ExclusionMode.Ignore
+
+        Shortcut {
+            sequences: ["Meta", "Super", "Alt+F1"]
+            onActivated: SageState.launcherOpen = false
+        }
 
         property string queryText: ""
         property int selectedIndex: 0
@@ -193,15 +198,14 @@ Variants {
                             }
                             Keys.onPressed: (event) => {
                                 if (event.key === Qt.Key_Super_L || event.key === Qt.Key_Super_R || event.key === Qt.Key_Meta) {
-                                    launcherWindow.superPressedInside = true;
+                                    SageState.lastLauncherToggleTime = Date.now();
+                                    SageState.launcherOpen = false;
                                     event.accepted = true;
                                     return;
                                 }
-                                launcherWindow.superPressedInside = false;
                             }
                             Keys.onReleased: (event) => {
                                 if (event.key === Qt.Key_Super_L || event.key === Qt.Key_Super_R || event.key === Qt.Key_Meta) {
-                                    launcherWindow.superPressedInside = false;
                                     SageState.lastLauncherToggleTime = Date.now();
                                     SageState.launcherOpen = false;
                                     event.accepted = true;

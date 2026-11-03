@@ -1523,79 +1523,102 @@ Variants {
                                     }
                                 }
 
-                                Repeater {
-                                    model: [
-                                        { id: "great_sage", title: "GREAT SAGE // RAPHAEL GOLD", desc: "Cyan Magicule + Golden Seal", c1: "#00e5ff", c2: "#ffd54f" },
-                                        { id: "magicule", title: "RIMURU // PURE MAGICULE ICE", desc: "Luminous Cyan + Glacial Ice", c1: "#00e5ff", c2: "#84ffff" },
-                                        { id: "beelzebub", title: "BEELZEBUB // GLUTTONY ABYSS", desc: "Devouring Vortex Violet + Cyan", c1: "#b388ff", c2: "#00e5ff" },
-                                        { id: "hellflare", title: "BENIMARU // CRIMSON HELLFLARE", desc: "Demon Lord Crimson + Gold Flame", c1: "#ff5252", c2: "#ffd54f" }
-                                    ]
+                                Flickable {
+                                    width: 402
+                                    height: 226
+                                    contentHeight: themeCol.implicitHeight
+                                    clip: true
 
-                                    Rectangle {
-                                        id: themeCard
-                                        required property var modelData
-                                        readonly property bool active: SageState.themeName === modelData.id
-
+                                    Column {
+                                        id: themeCol
                                         width: 402
-                                        height: 50
-                                        radius: 5
-                                        color: active
-                                               ? Qt.rgba(SageState.primaryAccent.r, SageState.primaryAccent.g, SageState.primaryAccent.b, 0.22)
-                                               : SageState.bgVoid
-                                        border.width: active ? 2 : 1
-                                        border.color: active ? SageState.secondaryAccent : SageState.primaryAccent
+                                        spacing: 6
 
-                                        Row {
-                                            x: 12
-                                            y: 8
-                                            width: 378
-                                            height: 34
-                                            spacing: 12
+                                        Repeater {
+                                            model: [
+                                                { id: "great_sage", title: "GREAT SAGE // RAPHAEL GOLD", desc: "Cyan Magicule + Golden Seal", c1: "#00e5ff", c2: "#ffd54f", wall: Quickshell.env("HOME") + "/.config/hypr/wallpapers/rimuru-great-sage.png" },
+                                                { id: "magicule", title: "RIMURU // PURE MAGICULE ICE", desc: "Luminous Cyan + Glacial Ice", c1: "#00e5ff", c2: "#84ffff", wall: Quickshell.env("HOME") + "/.config/hypr/wallpapers/rimuru-magicule.png" },
+                                                { id: "beelzebub", title: "BEELZEBUB // GLUTTONY ABYSS", desc: "Devouring Vortex Violet + Cyan", c1: "#b388ff", c2: "#00e5ff", wall: Quickshell.env("HOME") + "/.config/hypr/wallpapers/beelzebub-abyss.png" },
+                                                { id: "hellflare", title: "BENIMARU // CRIMSON HELLFLARE", desc: "Demon Lord Crimson + Gold Flame", c1: "#ff5252", c2: "#ffd54f", wall: Quickshell.env("HOME") + "/.config/hypr/wallpapers/crimson-hellflare.png" },
+                                                { id: "diablo", title: "DIABLO // NOIR PRIMORDIAL", desc: "Lord of Darkness Crimson & Gold", c1: "#e53935", c2: "#ffd54f", wall: Quickshell.env("HOME") + "/.config/hypr/wallpapers/diablo-primordial.png" },
+                                                { id: "testarossa", title: "TESTAROSSA // BLANC PRIMORDIAL", desc: "Celestial White Noble & Blood Ruby", c1: "#ffffff", c2: "#ef4444", wall: Quickshell.env("HOME") + "/.config/hypr/wallpapers/testarossa-primordial.png" },
+                                                { id: "carrera", title: "CARRERA // JAUNE PRIMORDIAL", desc: "Solar Lightning Yellow & Imperial Violet", c1: "#fbbf24", c2: "#a855f7", wall: Quickshell.env("HOME") + "/.config/hypr/wallpapers/carrera-primordial.png" },
+                                                { id: "ultima", title: "ULTIMA // VIOLET PRIMORDIAL", desc: "Toxic Violet Flame & Emerald Poison", c1: "#c084fc", c2: "#10b981", wall: Quickshell.env("HOME") + "/.config/hypr/wallpapers/ultima-primordial.png" },
+                                                { id: "mustang", title: "MUSTANG // DEMON PRIMORDIAL", desc: "Onyx Shadow & Fiery Amber Flame", c1: "#f97316", c2: "#ffd54f", wall: Quickshell.env("HOME") + "/.config/hypr/wallpapers/mustang-primordial.png" }
+                                            ]
 
-                                            Row {
-                                                anchors.verticalCenter: parent.verticalCenter
-                                                spacing: 3
-                                                Rectangle { width: 12; height: 26; radius: 2; color: themeCard.modelData.c1 }
-                                                Rectangle { width: 12; height: 26; radius: 2; color: themeCard.modelData.c2 }
-                                            }
+                                            Rectangle {
+                                                id: themeCard
+                                                required property var modelData
+                                                readonly property bool active: SageState.themeName === modelData.id
 
-                                            Column {
-                                                width: 260
-                                                anchors.verticalCenter: parent.verticalCenter
-                                                spacing: 1
-                                                Text {
-                                                    text: themeCard.modelData.title
-                                                    color: SageState.textPrimary
-                                                    font.family: "JetBrainsMono Nerd Font"
-                                                    font.pixelSize: 10
-                                                    font.bold: true
+                                                width: 398
+                                                height: 48
+                                                radius: 5
+                                                color: active
+                                                       ? Qt.rgba(SageState.primaryAccent.r, SageState.primaryAccent.g, SageState.primaryAccent.b, 0.22)
+                                                       : SageState.bgVoid
+                                                border.width: active ? 2 : 1
+                                                border.color: active ? SageState.secondaryAccent : SageState.primaryAccent
+
+                                                Row {
+                                                    x: 10
+                                                    y: 7
+                                                    width: 378
+                                                    height: 34
+                                                    spacing: 10
+
+                                                    Row {
+                                                        anchors.verticalCenter: parent.verticalCenter
+                                                        spacing: 3
+                                                        Rectangle { width: 10; height: 26; radius: 2; color: themeCard.modelData.c1 }
+                                                        Rectangle { width: 10; height: 26; radius: 2; color: themeCard.modelData.c2 }
+                                                    }
+
+                                                    Column {
+                                                        width: 260
+                                                        anchors.verticalCenter: parent.verticalCenter
+                                                        spacing: 1
+                                                        Text {
+                                                            text: themeCard.modelData.title
+                                                            color: SageState.textPrimary
+                                                            font.family: "JetBrainsMono Nerd Font"
+                                                            font.pixelSize: 10
+                                                            font.bold: true
+                                                            elide: Text.ElideRight
+                                                        }
+                                                        Text {
+                                                            text: themeCard.modelData.desc
+                                                            color: SageState.textMuted
+                                                            font.family: "JetBrainsMono Nerd Font"
+                                                            font.pixelSize: 9
+                                                            elide: Text.ElideRight
+                                                        }
+                                                    }
+
+                                                    Text {
+                                                        width: 66
+                                                        anchors.verticalCenter: parent.verticalCenter
+                                                        horizontalAlignment: Text.AlignRight
+                                                        text: themeCard.active ? "ACTIVE" : "SELECT ▸"
+                                                        color: themeCard.active ? SageState.secondaryAccent : SageState.primaryAccent
+                                                        font.family: "JetBrainsMono Nerd Font"
+                                                        font.pixelSize: 9
+                                                        font.bold: true
+                                                    }
                                                 }
-                                                Text {
-                                                    text: themeCard.modelData.desc
-                                                    color: SageState.textMuted
-                                                    font.family: "JetBrainsMono Nerd Font"
-                                                    font.pixelSize: 9
+
+                                                MouseArea {
+                                                    anchors.fill: parent
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: {
+                                                        SageState.themeName = themeCard.modelData.id;
+                                                        SageState.runCmd([SageState.ctlScript, "set-theme", themeCard.modelData.id]);
+                                                        if (themeCard.modelData.wall) {
+                                                            SageState.setWallpaper(themeCard.modelData.wall);
+                                                        }
+                                                    }
                                                 }
-                                            }
-
-                                            Text {
-                                                width: 66
-                                                anchors.verticalCenter: parent.verticalCenter
-                                                horizontalAlignment: Text.AlignRight
-                                                text: themeCard.active ? "ACTIVE" : "SELECT ▸"
-                                                color: themeCard.active ? SageState.secondaryAccent : SageState.primaryAccent
-                                                font.family: "JetBrainsMono Nerd Font"
-                                                font.pixelSize: 9
-                                                font.bold: true
-                                            }
-                                        }
-
-                                        MouseArea {
-                                            anchors.fill: parent
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: {
-                                                SageState.themeName = themeCard.modelData.id;
-                                                SageState.runCmd([SageState.ctlScript, "set-theme", themeCard.modelData.id]);
                                             }
                                         }
                                     }

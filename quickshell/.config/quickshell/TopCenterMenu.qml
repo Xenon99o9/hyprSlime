@@ -1379,77 +1379,100 @@ Variants {
                                 font.bold: true
                             }
 
-                            Repeater {
-                                model: [
-                                    { id: "great_sage", title: "◈ RAPHAEL // GREAT SAGE", sub: "Cyan Magicule & Divine Gold", col: "#00e5ff" },
-                                    { id: "beelzebub",  title: "◈ BEELZEBUB // GLUTTONY", sub: "Abyssal Devouring Purple & Cyan", col: "#b388ff" },
-                                    { id: "magicule",   title: "◈ RIMURU // SLIME AURA",  sub: "Pure Azure & Ice Magicule", col: "#84ffff" },
-                                    { id: "hellflare",  title: "◈ BENIMARU // HELLFLARE", sub: "Crimson Black Flame & Gold", col: "#ff5252" }
-                                ]
+                            Flickable {
+                                width: 324
+                                height: 300
+                                contentHeight: topSkillCol.implicitHeight
+                                clip: true
 
-                                SageFrame {
-                                    id: topSkillCard
-                                    required property var modelData
-                                    readonly property bool isCurrentSkill: SageState.themeName === modelData.id
+                                Column {
+                                    id: topSkillCol
                                     width: 324
-                                    height: 64
-                                    chamfer: 8
-                                    fillColor: isCurrentSkill
-                                               ? Qt.rgba(SageState.primaryAccent.r, SageState.primaryAccent.g, SageState.primaryAccent.b, 0.22)
-                                               : SageState.bgVoid
-                                    borderColor: isCurrentSkill ? SageState.secondaryAccent : modelData.col
+                                    spacing: 8
 
-                                    Row {
-                                        x: 14
-                                        y: 12
-                                        width: 296
-                                        height: 40
-                                        spacing: 12
+                                    Repeater {
+                                        model: [
+                                            { id: "great_sage", title: "◈ RAPHAEL // GREAT SAGE", sub: "Cyan Magicule & Divine Gold", col: "#00e5ff", wall: Quickshell.env("HOME") + "/.config/hypr/wallpapers/rimuru-great-sage.png" },
+                                            { id: "diablo",     title: "◈ DIABLO // NOIR PRIMORDIAL", sub: "Lord of Darkness Crimson & Gold", col: "#e53935", wall: Quickshell.env("HOME") + "/.config/hypr/wallpapers/diablo-primordial.png" },
+                                            { id: "testarossa", title: "◈ TESTAROSSA // BLANC", sub: "Celestial White & Blood Ruby", col: "#ffffff", wall: Quickshell.env("HOME") + "/.config/hypr/wallpapers/testarossa-primordial.png" },
+                                            { id: "carrera",    title: "◈ CARRERA // JAUNE", sub: "Solar Nuclear Gold & Violet", col: "#fbbf24", wall: Quickshell.env("HOME") + "/.config/hypr/wallpapers/carrera-primordial.png" },
+                                            { id: "ultima",     title: "◈ ULTIMA // VIOLET", sub: "Toxic Violet Flame & Emerald Poison", col: "#c084fc", wall: Quickshell.env("HOME") + "/.config/hypr/wallpapers/ultima-primordial.png" },
+                                            { id: "mustang",    title: "◈ MUSTANG // DEMON", sub: "Onyx Shadow & Fiery Amber Flame", col: "#f97316", wall: Quickshell.env("HOME") + "/.config/hypr/wallpapers/mustang-primordial.png" },
+                                            { id: "beelzebub",  title: "◈ BEELZEBUB // GLUTTONY", sub: "Abyssal Devouring Purple & Cyan", col: "#b388ff", wall: Quickshell.env("HOME") + "/.config/hypr/wallpapers/beelzebub-abyss.png" },
+                                            { id: "magicule",   title: "◈ RIMURU // SLIME AURA",  sub: "Pure Azure & Ice Magicule", col: "#84ffff", wall: Quickshell.env("HOME") + "/.config/hypr/wallpapers/rimuru-magicule.png" },
+                                            { id: "hellflare",  title: "◈ BENIMARU // HELLFLARE", sub: "Crimson Black Flame & Gold", col: "#ff5252", wall: Quickshell.env("HOME") + "/.config/hypr/wallpapers/crimson-hellflare.png" }
+                                        ]
 
-                                        Rectangle {
-                                            width: 14
-                                            height: 40
-                                            radius: 3
-                                            color: topSkillCard.modelData.col
-                                        }
+                                        SageFrame {
+                                            id: topSkillCard
+                                            required property var modelData
+                                            readonly property bool isCurrentSkill: SageState.themeName === modelData.id
+                                            width: 324
+                                            height: 58
+                                            chamfer: 8
+                                            fillColor: isCurrentSkill
+                                                       ? Qt.rgba(SageState.primaryAccent.r, SageState.primaryAccent.g, SageState.primaryAccent.b, 0.22)
+                                                       : SageState.bgVoid
+                                            borderColor: isCurrentSkill ? SageState.secondaryAccent : modelData.col
 
-                                        Column {
-                                            width: 204
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            spacing: 2
+                                            Row {
+                                                x: 12
+                                                y: 10
+                                                width: 300
+                                                height: 38
+                                                spacing: 10
 
-                                            Text {
-                                                text: topSkillCard.modelData.title
-                                                color: SageState.textPrimary
-                                                font.family: "JetBrainsMono Nerd Font"
-                                                font.pixelSize: 11
-                                                font.bold: true
+                                                Rectangle {
+                                                    width: 10
+                                                    height: 38
+                                                    radius: 2
+                                                    color: topSkillCard.modelData.col
+                                                }
+
+                                                Column {
+                                                    width: 210
+                                                    anchors.verticalCenter: parent.verticalCenter
+                                                    spacing: 2
+
+                                                    Text {
+                                                        text: topSkillCard.modelData.title
+                                                        color: SageState.textPrimary
+                                                        font.family: "JetBrainsMono Nerd Font"
+                                                        font.pixelSize: 10
+                                                        font.bold: true
+                                                        elide: Text.ElideRight
+                                                    }
+
+                                                    Text {
+                                                        text: topSkillCard.modelData.sub
+                                                        color: SageState.textMuted
+                                                        font.family: "JetBrainsMono Nerd Font"
+                                                        font.pixelSize: 9
+                                                        elide: Text.ElideRight
+                                                    }
+                                                }
+
+                                                Text {
+                                                    anchors.verticalCenter: parent.verticalCenter
+                                                    text: topSkillCard.isCurrentSkill ? "[ACTIVE]" : "EQUIP ▸"
+                                                    color: topSkillCard.isCurrentSkill ? SageState.secondaryAccent : topSkillCard.modelData.col
+                                                    font.family: "JetBrainsMono Nerd Font"
+                                                    font.pixelSize: 9
+                                                    font.bold: true
+                                                }
                                             }
 
-                                            Text {
-                                                text: topSkillCard.modelData.sub
-                                                color: SageState.textMuted
-                                                font.family: "JetBrainsMono Nerd Font"
-                                                font.pixelSize: 9
+                                            MouseArea {
+                                                anchors.fill: parent
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: {
+                                                    SageState.themeName = topSkillCard.modelData.id;
+                                                    SageState.runCmd([SageState.ctlScript, "set-theme", topSkillCard.modelData.id]);
+                                                    if (topSkillCard.modelData.wall) {
+                                                        SageState.setWallpaper(topSkillCard.modelData.wall);
+                                                    }
+                                                }
                                             }
-                                        }
-
-                                        Text {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: topSkillCard.isCurrentSkill ? "[ACTIVE]" : "EQUIP ▸"
-                                            color: topSkillCard.isCurrentSkill ? SageState.secondaryAccent : topSkillCard.modelData.col
-                                            font.family: "JetBrainsMono Nerd Font"
-                                            font.pixelSize: 9
-                                            font.bold: true
-                                        }
-                                    }
-
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: {
-                                            SageState.themeName = topSkillCard.modelData.id;
-                                            SageState.runCmd([SageState.ctlScript, "set-theme", topSkillCard.modelData.id]);
                                         }
                                     }
                                 }

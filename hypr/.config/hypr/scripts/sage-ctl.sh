@@ -614,6 +614,56 @@ EOF
                     sed -i 's/^M\.slime_glow.*/M.slime_glow      = M.presets.hellflare.glow/' "$COLORS_LUA"
                 }
                 ;;
+            diablo)
+                [[ -f "$COLORS_CONF" ]] && {
+                    sed -i 's/^\$active_border.*/$active_border    = $border_diablo/' "$COLORS_CONF"
+                    sed -i 's/^\$slime_glow.*/$slime_glow       = $glow_diablo/' "$COLORS_CONF"
+                }
+                [[ -f "$COLORS_LUA" ]] && {
+                    sed -i 's/^M\.active_border.*/M.active_border   = M.presets.diablo.border/' "$COLORS_LUA"
+                    sed -i 's/^M\.slime_glow.*/M.slime_glow      = M.presets.diablo.glow/' "$COLORS_LUA"
+                }
+                ;;
+            testarossa)
+                [[ -f "$COLORS_CONF" ]] && {
+                    sed -i 's/^\$active_border.*/$active_border    = $border_testarossa/' "$COLORS_CONF"
+                    sed -i 's/^\$slime_glow.*/$slime_glow       = $glow_testarossa/' "$COLORS_CONF"
+                }
+                [[ -f "$COLORS_LUA" ]] && {
+                    sed -i 's/^M\.active_border.*/M.active_border   = M.presets.testarossa.border/' "$COLORS_LUA"
+                    sed -i 's/^M\.slime_glow.*/M.slime_glow      = M.presets.testarossa.glow/' "$COLORS_LUA"
+                }
+                ;;
+            carrera)
+                [[ -f "$COLORS_CONF" ]] && {
+                    sed -i 's/^\$active_border.*/$active_border    = $border_carrera/' "$COLORS_CONF"
+                    sed -i 's/^\$slime_glow.*/$slime_glow       = $glow_carrera/' "$COLORS_CONF"
+                }
+                [[ -f "$COLORS_LUA" ]] && {
+                    sed -i 's/^M\.active_border.*/M.active_border   = M.presets.carrera.border/' "$COLORS_LUA"
+                    sed -i 's/^M\.slime_glow.*/M.slime_glow      = M.presets.carrera.glow/' "$COLORS_LUA"
+                }
+                ;;
+            ultima)
+                [[ -f "$COLORS_CONF" ]] && {
+                    sed -i 's/^\$active_border.*/$active_border    = $border_ultima/' "$COLORS_CONF"
+                    sed -i 's/^\$slime_glow.*/$slime_glow       = $glow_ultima/' "$COLORS_CONF"
+                }
+                [[ -f "$COLORS_LUA" ]] && {
+                    sed -i 's/^M\.active_border.*/M.active_border   = M.presets.ultima.border/' "$COLORS_LUA"
+                    sed -i 's/^M\.slime_glow.*/M.slime_glow      = M.presets.ultima.glow/' "$COLORS_LUA"
+                }
+                ;;
+            mustang)
+                [[ -f "$COLORS_CONF" ]] && {
+                    sed -i 's/^\$active_border.*/$active_border    = $border_mustang/' "$COLORS_CONF"
+                    sed -i 's/^\$slime_glow.*/$slime_glow       = $glow_mustang/' "$COLORS_CONF"
+                }
+                [[ -f "$COLORS_LUA" ]] && {
+                    sed -i 's/^M\.active_border.*/M.active_border   = M.presets.mustang.border/' "$COLORS_LUA"
+                    sed -i 's/^M\.slime_glow.*/M.slime_glow      = M.presets.mustang.glow/' "$COLORS_LUA"
+                }
+                ;;
             *)
                 [[ -f "$COLORS_CONF" ]] && {
                     sed -i 's/^\$active_border.*/$active_border    = $border_great_sage/' "$COLORS_CONF"
