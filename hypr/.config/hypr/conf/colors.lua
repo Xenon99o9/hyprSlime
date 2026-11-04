@@ -60,8 +60,8 @@ local M = {
 }
 
 -- Active preset (Great Sage by default)
-M.active_border   = M.presets.hellflare.border
-M.slime_glow      = M.presets.hellflare.glow
+M.active_border   = M.presets.magicule.border
+M.slime_glow      = M.presets.magicule.glow
 M.inactive_border = M.bg_inactive
 
 return M
